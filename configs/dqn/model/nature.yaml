@@ -1,0 +1,12 @@
+# dqn-nature
+backbone:
+    type: 'nature'
+    obs_shape: None # not pre-defined
+    renormalize: False
+header:
+    type: None
+policy:
+    type: 'dqn'
+    in_features: 3136
+    hid_features: 512
+    action_size: None # not pre-defined

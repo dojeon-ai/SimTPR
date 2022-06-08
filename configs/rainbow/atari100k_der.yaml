@@ -1,0 +1,10 @@
+# OT-Rainbow
+project_name: 'atari100k'
+exp_name: 'de_rainbow'
+seed: 0
+
+defaults:
+- _self_
+- agent: de_rainbow
+- env: atari
+- model: de_nature

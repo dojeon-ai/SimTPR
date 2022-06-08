@@ -1,0 +1,15 @@
+# dqn-nature
+backbone:
+    type: 'de_nature'
+    obs_shape: None # not pre-defined
+    renormalize: False
+    init_type: None
+header:
+    type: None
+policy:
+    type: 'rainbow'
+    in_features: 576
+    hid_features: 256
+    action_size: None # not pre-defined
+    num_atoms: 51
+    noisy_std: 0.1

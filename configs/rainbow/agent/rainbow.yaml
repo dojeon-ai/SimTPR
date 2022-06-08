@@ -1,0 +1,42 @@
+# agent
+type: 'rainbow'
+num_timesteps: 100000 # 100k
+obs_shape: None
+action_size: None
+
+buffer: 
+    type: 'per_buffer'
+    size: 100000
+    n_step: 10
+    prior_exp: 0.5 # ω
+    prior_weight_scheduler: # β
+        initial_value: 0.4
+        final_value: 1.0
+        step_size: 100000
+
+optimizer:
+    type: 'adam'
+    lr: 0.0001
+    weight_decay: 0.0
+    betas: [0.9, 0.999]
+    eps: 0.00015
+
+# c51
+v_min: -10
+v_max: 10
+
+# updates
+double: True
+gamma: 0.99
+batch_size: 32
+updates_per_step: 2
+update_freq: 1
+target_update_freq: 1
+clip_grad_norm: 10
+min_buffer_size: 2000
+
+# logging
+log_every: 1000
+
+# evaluation
+num_eval_trajectories: 10
