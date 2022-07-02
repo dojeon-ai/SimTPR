@@ -1,7 +1,10 @@
 # OT-Rainbow
 project_name: 'atari100k'
 exp_name: 'de_rainbow'
+device: cuda:0
 seed: 0
+artifact: None
+model_name: None
 
 defaults:
 - _self_

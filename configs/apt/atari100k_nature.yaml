@@ -1,13 +1,12 @@
 # OT-Rainbow
 project_name: 'atari100k'
-exp_name: 'rainbow'
+exp_name: 'apt'
 device: cuda:0
 seed: 0
-artifact: None
-model_name: None
+pretrained_path: None
 
 defaults:
 - _self_
-- agent: rainbow
+- agent: apt
 - env: atari
 - model: nature

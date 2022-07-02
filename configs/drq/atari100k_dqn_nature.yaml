@@ -1,6 +1,7 @@
 # OT-Rainbow
 project_name: 'atari100k'
 exp_name: 'drq_dqn'
+device: cuda:0
 seed: 0
 
 defaults:

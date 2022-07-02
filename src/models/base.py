@@ -17,3 +17,14 @@ class Model(nn.Module):
         x = self.backbone(x)
         x = self.policy(x)
         return x
+
+    def load_backbone_and_policy(self, checkpoint):
+        state_dict = self.state_dict()
+        _pretrained_state_dict = checkpoint['model_state_dict']
+        pretrained_state_dict = {}
+        for name, param in _pretrained_state_dict.items():
+            if 'backbone' in name:
+                pretrained_state_dict[name] = param
+            elif 'policy' in name:
+                pretrained_state_dict[name] = param
+        self.load_state_dict(pretrained_state_dict, strict=False)

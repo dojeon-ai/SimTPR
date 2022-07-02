@@ -101,12 +101,11 @@ class RainbowPolicy(BasePolicy):
         q = v + adv - adv.mean(1, keepdim=True)
 
         # (batch_size, action_size, num_atoms)
+        q = F.log_softmax(q, -1)
         if log:
-            q = F.log_softmax(q, -1)
+            return q
         else:
-            q = F.softmax(q, -1)
-
-        return q
+            return torch.exp(q)
 
     def reset_noise(self):
         for name, branch in self.named_children():

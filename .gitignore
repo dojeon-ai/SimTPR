@@ -118,3 +118,5 @@ __pycache__
 *.npy
 *.out
 **/origin/**
+data
+artifacts

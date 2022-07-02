@@ -10,14 +10,27 @@ import numpy as np
 
 class WandbLogger(object):
     def __init__(self, cfg):
+        self.cfg = cfg
         dict_cfg = OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
         wandb.init(project=cfg.project_name, 
                    config=dict_cfg,
-                   settings=wandb.Settings(start_method="thread"))        
+                   group=cfg.exp_name,
+                   reinit=True,
+                   settings=wandb.Settings(start_method="thread"))    
+
+        self._use_pretrained_model = False
+        if cfg.artifact is not None:
+            artifact = wandb.run.use_artifact(str(cfg.artifact) + ':latest')
+            model_name = cfg.env.game + '/seed=' + str(cfg.seed) + '/' + str(cfg.ckpt) + '/model.pth'
+            model_path = artifact.get_path(model_name).download()
+            self.pretrained_model_path = model_path
+            self._use_pretrained_model = True
+
         self.model_path = wandb.run.dir + '/model.pth'
         self.config_path = wandb.run.dir + '/config.json'
         with open(self.config_path, 'w') as f:
             json.dump(dict_cfg, f)
+        self.artifacts = {}
 
         self.train_logger = Logger(average_len=10)
         self.eval_logger = Logger(average_len=100)
@@ -49,11 +62,33 @@ class WandbLogger(object):
         log_data = {mode+'_'+k: v for k, v in log_data.items() }
         wandb.log(log_data, step=self.timestep)
 
-    def save_state_dict(self, state_dict):
-        torch.save(state_dict, self.model_path)
+    def save_state_dict(self, model):
+        name = self.cfg.env.game + '/seed=' + str(self.cfg.seed) + '/' + str(self.timestep) + '/model.pth'
+        path = wandb.run.dir + '/' + name
+        _dir = os.path.dirname(path)
+        if not os.path.exists(_dir):
+            os.makedirs(_dir)
+        state_dict = {'model_state_dict': model.state_dict()}
+        torch.save(state_dict, path)
+        self.artifacts[path] = name
     
-    def load_state_dict(self):
-        return torch.load(self.model_path)
+    def load_state_dict(self, path):
+        return torch.load(path)
+
+    def get_artifacts(self):
+        return self.artifacts
+
+    def get_mean_eval_score(self):
+        return np.mean(self.eval_logger.traj_game_scores_buffer)
+
+    def get_game_name(self):
+        return self.cfg.env.game
+
+    def get_pretrained_model_path(self):
+        return self.pretrained_model_path
+
+    def use_pretrained_model(self):
+        return self._use_pretrained_model
 
 
 class Logger(object):

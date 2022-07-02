@@ -15,6 +15,18 @@ class BaseAgent(metaclass=ABCMeta):
     def _build_optimizer(self):
         pass
 
+    def create_state_dict(self):
+        return {
+            'model_state_dict': self.model.module.state_dict(),
+        }
+
+    def save_state_dict(self, path):
+        state_dict = {'model_state_dict': self.model.state_dict()}
+        torch.save(state_dict, path)
+    
+    def load_state_dict(self, path):
+        return torch.load(path)
+            
     def predict(self):
         pass
     

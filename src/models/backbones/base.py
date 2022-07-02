@@ -1,7 +1,7 @@
 from abc import *
 import torch.nn as nn
 import torch
-
+EPS = 1e-5
 
 class BaseBackbone(nn.Module, metaclass=ABCMeta):
     def __init__(self):
@@ -20,6 +20,6 @@ class BaseBackbone(nn.Module, metaclass=ABCMeta):
         flat_tensor = tensor.view(*tensor.shape[:first_dim], -1)
         max = torch.max(flat_tensor, first_dim, keepdim=True).values
         min = torch.min(flat_tensor, first_dim, keepdim=True).values
-        flat_tensor = (flat_tensor - min)/(max - min)
+        flat_tensor = (flat_tensor - min)/(max - min + EPS)
 
         return flat_tensor.view(*tensor.shape)
