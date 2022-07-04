@@ -13,13 +13,11 @@ import numpy as np
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(allow_abbrev=False)
-    parser.add_argument('--exp_name',     type=str,    default='drq_from_apt_policy',  help='name for the parallel runs')
+    parser.add_argument('--exp_name',     type=str,    default='drq',  help='name for the parallel runs')
     parser.add_argument('--config_dir',   type=str,    default='drq')
     parser.add_argument('--config_name',  type=str,    default='atari100k_rainbow_nature') 
-    parser.add_argument('--artifact',     type=str,    default='benchmark_apt')
-    parser.add_argument('--ckpt',         type=str,    default='1000000')
-    parser.add_argument('--num_seeds',    type=int,    default=1)
-    parser.add_argument('--num_devices',  type=int,    default=5)
+    parser.add_argument('--num_seeds',     type=int,   default=1)
+    parser.add_argument('--num_devices',   type=int,   default=4)
     parser.add_argument('--num_exp_per_device',  type=int,  default=3)
     parser.add_argument('--overrides',    action='append',  default=[]) #'agent.num_timesteps=4000'])
     
@@ -43,9 +41,6 @@ if __name__ == '__main__':
         exp['overrides'].append('seed=' + str(seed))
         exp['overrides'].append('env.game=' + str(game))
         exp['overrides'].append('device=' + 'cuda:' + str(device_id))
-        if artifact:
-            exp['overrides'].append('artifact=' + str(artifact))
-            exp['overrides'].append('ckpt=' + str(ckpt))
 
         experiments.append(exp)
         device_id += 1

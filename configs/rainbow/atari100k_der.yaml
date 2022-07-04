@@ -3,8 +3,11 @@ project_name: 'atari100k'
 exp_name: 'de_rainbow'
 device: cuda:0
 seed: 0
-artifact: None
-model_name: None
+
+# pretrained-backbone
+use_artifact: False
+artifact_name: ''
+model_path: ''
 
 defaults:
 - _self_

@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch
 
 
-class BaseHeader(nn.Module, metaclass=ABCMeta):
+class BaseHead(nn.Module, metaclass=ABCMeta):
     def __init__(self):
         super().__init__()
 

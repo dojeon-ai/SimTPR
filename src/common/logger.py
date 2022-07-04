@@ -19,8 +19,8 @@ class WandbLogger(object):
                    settings=wandb.Settings(start_method="thread"))    
 
         self._use_pretrained_model = False
-        if cfg.artifact is not None:
-            artifact = wandb.run.use_artifact(str(cfg.artifact) + ':latest')
+        if cfg.use_artifact:
+            artifact = wandb.run.use_artifact(str(cfg.artifact_name) + ':latest')
             model_name = cfg.env.game + '/seed=' + str(cfg.seed) + '/' + str(cfg.ckpt) + '/model.pth'
             model_path = artifact.get_path(model_name).download()
             self.pretrained_model_path = model_path
@@ -87,6 +87,7 @@ class WandbLogger(object):
     def get_pretrained_model_path(self):
         return self.pretrained_model_path
 
+    @property
     def use_pretrained_model(self):
         return self._use_pretrained_model
 
