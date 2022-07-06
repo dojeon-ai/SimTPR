@@ -1,0 +1,15 @@
+# OT-Rainbow
+project_name: 'atari100k'
+exp_name: 'byol'
+device: cuda:0
+seed: 0
+
+# pretrained-backbone
+use_artifact: False
+artifact_name: ''
+model_path: ''
+
+defaults:
+- _self_
+- dataloader: mixed
+- model: nature_byol

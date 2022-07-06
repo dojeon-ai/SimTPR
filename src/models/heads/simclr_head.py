@@ -1,9 +1,9 @@
 import torch.nn as nn
 import torch
-from .base import BaseHeader
+from .base import BaseHead
 
 
-class SimCLRHeader(BaseHeader):
+class SimCLRHead(BaseHead):
     name = 'simclr'
     def __init__(self, 
                  in_features,

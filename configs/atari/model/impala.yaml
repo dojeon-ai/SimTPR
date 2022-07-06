@@ -1,15 +1,15 @@
 # dqn-nature
 backbone:
-    type: 'nature'
+    type: 'impala'
     obs_shape: None # not pre-defined
     renormalize: True
     init_type: None
-header:
+head:
     type: None
 policy:
     type: 'rainbow'
-    in_features: 3136
-    hid_features: 256
+    in_features: 2048
+    hid_features: 512
     action_size: None # not pre-defined
     num_atoms: 51
     noisy_std: 0.5

@@ -8,7 +8,54 @@ from collections import deque
 import numpy as np
 
 
-class WandbLogger(object):
+class WandbTrainerLogger(object):
+    def __init__(self, cfg):
+        self.cfg = cfg
+        dict_cfg = OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
+        wandb.init(project=cfg.project_name, 
+                   config=dict_cfg,
+                   group=cfg.exp_name,
+                   #reinit=True,
+                   settings=wandb.Settings(start_method="thread"))    
+
+        self.model_path = wandb.run.dir + '/model.pth'
+        self.config_path = wandb.run.dir + '/config.json'
+        with open(self.config_path, 'w') as f:
+            json.dump(dict_cfg, f)
+        self.artifacts = {}
+
+        self.logger = TrainerLogger()
+        self.step = 0
+
+    def update_log(self, **kwargs):
+        self.logger.update_log(**kwargs)
+        self.step += 1
+    
+    def write_log(self):
+        log_data = self.logger.fetch_log()
+        wandb.log(log_data, step=self.step)
+
+    def save_state_dict(self, model):
+        name = self.cfg.dataloader.game + '/' + str(self.cfg.seed) + '/' + str(self.step) + '/model.pth'
+        path = wandb.run.dir + '/' + name
+        _dir = os.path.dirname(path)
+        if not os.path.exists(_dir):
+            os.makedirs(_dir)
+        state_dict = {'model_state_dict': model.state_dict()}
+        torch.save(state_dict, path)
+        self.artifacts[path] = name
+    
+    def load_state_dict(self, path):
+        return torch.load(path)
+
+    def get_artifacts(self):
+        return self.artifacts
+
+
+
+
+
+class WandbAgentLogger(object):
     def __init__(self, cfg):
         self.cfg = cfg
         dict_cfg = OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
@@ -32,8 +79,8 @@ class WandbLogger(object):
             json.dump(dict_cfg, f)
         self.artifacts = {}
 
-        self.train_logger = Logger(average_len=10)
-        self.eval_logger = Logger(average_len=100)
+        self.train_logger = AgentLogger(average_len=10)
+        self.eval_logger = AgentLogger(average_len=100)
         self.timestep = 0
     
     def step(self, state, reward, done, info, mode='train'):
@@ -63,7 +110,7 @@ class WandbLogger(object):
         wandb.log(log_data, step=self.timestep)
 
     def save_state_dict(self, model):
-        name = self.cfg.env.game + '/seed=' + str(self.cfg.seed) + '/' + str(self.timestep) + '/model.pth'
+        name = self.cfg.env.game + '/' + str(self.cfg.seed) + '/' + str(self.timestep) + '/model.pth'
         path = wandb.run.dir + '/' + name
         _dir = os.path.dirname(path)
         if not os.path.exists(_dir):
@@ -92,7 +139,7 @@ class WandbLogger(object):
         return self._use_pretrained_model
 
 
-class Logger(object):
+class AgentLogger(object):
     def __init__(self, average_len=10):
         # https://arxiv.org/pdf/1709.06009.pdf 
         # Section 3.1 -> Training: end-of-life / Evaluation: end-of-trajectory

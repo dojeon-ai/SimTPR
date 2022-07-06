@@ -3,10 +3,10 @@ import torch.nn as nn
 
 
 class Model(nn.Module):
-    def __init__(self, backbone, header, policy):
+    def __init__(self, backbone, head, policy):
         super().__init__()
         self.backbone = backbone
-        self.header = header
+        self.head = head
         self.policy = policy
 
     def extract_feat(self, x):

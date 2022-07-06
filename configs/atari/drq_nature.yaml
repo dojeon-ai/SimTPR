@@ -1,6 +1,6 @@
 # OT-Rainbow
 project_name: 'atari100k'
-exp_name: 'de_rainbow'
+exp_name: 'drq'
 device: cuda:0
 seed: 0
 
@@ -11,6 +11,6 @@ model_path: ''
 
 defaults:
 - _self_
-- agent: de_rainbow
+- agent: drq
 - env: atari
-- model: de_nature
+- model: nature

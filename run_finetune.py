@@ -3,12 +3,13 @@ import hydra
 from hydra import compose, initialize
 from src.envs import *
 from src.models import *
-from src.common.logger import WandbLogger
+from src.common.logger import WandbAgentLogger
 from src.common.utils import set_global_seeds
 from src.agents import build_agent
 from typing import List
 from dotmap import DotMap
 import torch
+import wandb
 import numpy as np
 
 
@@ -20,7 +21,7 @@ def run(args):
 
     # Hydra Compose
     config_path = './configs/' + config_dir 
-    hydra.core.global_hydra.GlobalHydra.instance().clear()
+    # hydra.core.global_hydra.GlobalHydra.instance().clear()
     initialize(version_base=None, config_path=config_path) 
     cfg = compose(config_name=config_name, overrides=overrides)
     
@@ -33,7 +34,7 @@ def run(args):
     cfg.agent.action_size = cfg.model.policy.action_size = train_env.action_space.n
     
     # logger
-    logger= WandbLogger(cfg)
+    logger= WandbAgentLogger(cfg)
 
     # model
     model = build_model(cfg.model)
@@ -53,13 +54,14 @@ def run(args):
 
     # train
     agent.train()
+    wandb.finish()
     return logger
     
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(allow_abbrev=False)
-    parser.add_argument('--config_dir',  type=str,    default='rainbow')
-    parser.add_argument('--config_name', type=str,    default='atari100k_der') 
+    parser.add_argument('--config_dir',  type=str,    default='atari')
+    parser.add_argument('--config_name', type=str,    default='der_de') 
     parser.add_argument('--overrides',   action='append', default=[])
     args = parser.parse_args()
 

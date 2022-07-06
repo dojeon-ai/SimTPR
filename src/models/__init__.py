@@ -1,5 +1,5 @@
 from .backbones import *  
-from .headers import * 
+from .heads import * 
 from .policies import *
 from .base import Model
 from omegaconf import OmegaConf
@@ -9,8 +9,8 @@ from src.common.utils import all_subclasses
 BACKBONES = {subclass.get_name():subclass
             for subclass in all_subclasses(BaseBackbone)}
 
-HEADERS = {subclass.get_name():subclass
-            for subclass in all_subclasses(BaseHeader)}
+HEADS = {subclass.get_name():subclass
+         for subclass in all_subclasses(BaseHead)}
 
 POLICIES = {subclass.get_name():subclass
             for subclass in all_subclasses(BasePolicy)}
@@ -19,25 +19,25 @@ POLICIES = {subclass.get_name():subclass
 def build_model(cfg):
     cfg = OmegaConf.to_container(cfg)
     backbone_cfg = cfg['backbone']
-    header_cfg = cfg['header']
+    head_cfg = cfg['head']
     policy_cfg = cfg['policy']
     
     backbone_type = backbone_cfg.pop('type')
-    header_type = header_cfg.pop('type')
+    head_type = head_cfg.pop('type')
     policy_type = policy_cfg.pop('type')
 
     backbone = BACKBONES[backbone_type]
     backbone = backbone(**backbone_cfg)
-    if header_type != str(None):
-        header = HEADERS[header_type]
-        header = header(**header_cfg)
+    if head_type != str(None):
+        head = HEADS[head_type]
+        head = head(**head_cfg)
     else:
-        header = None
+        head = None
     policy = POLICIES[policy_type]
     policy = policy(**policy_cfg)
 
     model = Model(backbone = backbone,
-                  header = header,
+                  head = head,
                   policy = policy)
     
     return model
