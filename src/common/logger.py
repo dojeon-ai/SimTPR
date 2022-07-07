@@ -15,7 +15,6 @@ class WandbTrainerLogger(object):
         wandb.init(project=cfg.project_name, 
                    config=dict_cfg,
                    group=cfg.exp_name,
-                   #reinit=True,
                    settings=wandb.Settings(start_method="thread"))    
 
         self.model_path = wandb.run.dir + '/model.pth'
@@ -52,7 +51,20 @@ class WandbTrainerLogger(object):
         return self.artifacts
 
 
+class TrainerLogger(object):
+    def __init__(self):
+        self.average_meter_set = AverageMeterSet()
+    
+    def update_log(self, **kwargs):
+        for k, v in kwargs.items():
+            self.average_meter_set.update(k, v)
 
+    def fetch_log(self):
+        log_data = {}
+        log_data.update(self.average_meter_set.averages())
+        self.average_meter_set = AverageMeterSet()
+            
+        return log_data
 
 
 class WandbAgentLogger(object):

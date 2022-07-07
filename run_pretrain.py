@@ -6,11 +6,12 @@ from src.envs import *
 from src.models import *
 from src.common.logger import WandbTrainerLogger
 from src.common.utils import set_global_seeds
-from src.agents import build_agent
+from src.trainers import build_trainer
 from typing import List
 from dotmap import DotMap
 import torch
 import numpy as np
+import re
 
 
 def run(args):    
@@ -30,15 +31,11 @@ def run(args):
     # dataset
     dataloader = build_dataloader(cfg.dataloader)
 
-    for batch in dataloader:
-        import pdb
-        pdb.set_trace()
-
-
-    # environment
-    train_env, eval_env = build_env(cfg.env)
-    cfg.agent.obs_shape = cfg.model.backbone.obs_shape = train_env.observation_space.shape
-    cfg.agent.action_size = cfg.model.policy.action_size = train_env.action_space.n
+    # shape config
+    env, _ = build_env(cfg.env)
+    cfg.trainer.obs_shape = cfg.model.backbone.obs_shape = env.observation_space.shape
+    cfg.trainer.action_size = env.action_space.n
+    del env
     
     # logger
     logger= WandbTrainerLogger(cfg)
@@ -46,21 +43,15 @@ def run(args):
     # model
     model = build_model(cfg.model)
 
-    if logger.use_pretrained_model:
-        pretrained_model_path = logger.get_pretrained_model_path()
-        checkpoint = logger.load_state_dict(pretrained_model_path)
-        model.load_backbone_and_policy(checkpoint)
-
     # agent
-    agent = build_agent(cfg=cfg.agent,
-                        device=device,
-                        train_env=train_env,
-                        eval_env=eval_env,
-                        logger=logger,
-                        model=model)
+    trainer = build_trainer(cfg=cfg.trainer,
+                            dataloader=dataloader,
+                            device=device,
+                            logger=logger,
+                            model=model)
 
     # train
-    agent.train()
+    trainer.train()
     return logger
     
 

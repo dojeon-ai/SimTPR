@@ -1,14 +1,14 @@
 type: 'atari'
 data_path: '/home/nas3_userK/hojoonlee/projects/video_rl/data/atari'
 tmp_data_path: '/home/nas3_userK/hojoonlee/projects/video_rl/data/atari'
-games: ['Pong'] # requires camel case
+game: 'Pong' # requires camel case
 checkpoints: [1]
 frames: 4
-k_step: 16
+k_step: 8
 max_size: 1000000 # 1e6
 dataset_on_gpu: False
 dataset_on_disk: True
-batch_size: 32 # 32*16= 512
+batch_size: 256
 full_action_set: True
 num_workers: 4
 pin_memory: True

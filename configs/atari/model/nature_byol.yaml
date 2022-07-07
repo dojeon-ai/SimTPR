@@ -2,7 +2,7 @@
 backbone:
     type: 'nature'
     obs_shape: None # not pre-defined
-    renormalize: True
+    renormalize: False
     init_type: None
 head:
     type: byol

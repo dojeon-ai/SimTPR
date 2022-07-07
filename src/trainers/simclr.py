@@ -9,8 +9,8 @@ import copy
 import tqdm
 
 
-class BYOLTrainer(BaseTrainer):
-    name = 'byol'
+class SimCLRTrainer(BaseTrainer):
+    name = 'simclr'
     def __init__(self,
                  cfg,
                  device,
@@ -49,13 +49,11 @@ class BYOLTrainer(BaseTrainer):
         obs = obs.float() / 255.0
         obs1, obs2 = self.aug_func(obs), self.aug_func(obs)
         obs = torch.cat([obs1, obs2], axis=0)
-        #cur_obs1, cur_obs2 = obs1.reshape(T, B, S*C, H, W)[0], obs2.reshape(T, B, S*C, H, W)[0]
 
         # online encoder
         y_o = self.model.backbone(cur_obs)
         z_o = self.model.head.project(y_o)
-        p_o = self.model.head.predict(z_o)
-        p1_o, p2_o = p_o.chunk(2)
+        z1_o, z2_o = z_o.chunk(2)
 
         # target encoder
         with torch.no_grad():
@@ -64,11 +62,10 @@ class BYOLTrainer(BaseTrainer):
             z1_t, z2_t = z_t.chunk(2)
 
         # TODO: (1) change loss (2) reflect dones
-        # Temporal BYOL Loss
-        p1_o, p2_o = p1_o.repeat([T, 1]), p2_o.repeat([T, 1])
-        loss = -0.5 * (F.cosine_similarity(p1_o, z2_t.detach(), dim=-1).mean() 
-                        + F.cosine_similarity(p2_o, z1_t.detach(), dim=-1).mean()) 
-        
+        import pdb
+        pdb.set_trace()
+
+
         return loss
 
     def train(self):

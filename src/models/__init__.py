@@ -33,8 +33,11 @@ def build_model(cfg):
         head = head(**head_cfg)
     else:
         head = None
-    policy = POLICIES[policy_type]
-    policy = policy(**policy_cfg)
+    if policy_type != str(None):
+        policy = POLICIES[policy_type]
+        policy = policy(**policy_cfg)
+    else:
+        policy = None
 
     model = Model(backbone = backbone,
                   head = head,

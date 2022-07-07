@@ -37,35 +37,37 @@ class DQNReplayDataset(Dataset):
             # There's no point in putting rewards, actions or terminals on disk.
             # They're tiny and it'll just cause more I/O.
             on_disk = dataset_on_disk and filetype == "observation"
-            g = gzip.GzipFile(filename=filename)
-            data__ = np.load(g)
-            #if i == 0:
-            #    self.has_parallel_envs = len(data__.shape) > 1
-            #    if self.has_parallel_envs:
-            #        self.n_envs = data__.shape[1]
-            #    else:
-            #        self.n_envs = 1
-            #if not self.has_parallel_envs:
-            # data__ = np.expand_dims(data__, 1)
-
-            # number of interactions for each checkpoint
-            data___ = np.copy(data__[:max_size])
-            print(f'Using {data___.size * data___.itemsize} bytes')
             if not on_disk:
+                g = gzip.GzipFile(filename=filename)
+                data__ = np.load(g)
+
+                # number of interactions for each checkpoint
+                data___ = np.copy(data__[:max_size])
+                print(f'Using {data___.size * data___.itemsize} bytes')
                 del data__
                 data_ = torch.from_numpy(data___)
+            
             else:
                 new_filename = tmp_data_path + '/' + game
                 new_filename = os.path.join(new_filename, Path(os.path.basename(filename)[:-3]+".npy"))
-                print("Stored on disk at {}".format(new_filename))
-                np.save(new_filename, data___,)
-                del data___
-                del data__
-                data_ = np.load(new_filename, mmap_mode="r+")
+                try:
+                    data_ = np.load(new_filename, mmap_mode="r+")
+                except:
+                    g = gzip.GzipFile(filename=filename)
+                    data__ = np.load(g)
+                    data___ = np.copy(data__[:max_size])
+                    print(f'Using {data___.size * data___.itemsize} bytes')
+            
+                    np.save(new_filename, data___,)    
+                    print("Stored on disk at {}".format(new_filename))
+
+                    del data___
+                    del data__
+                    data_ = np.load(new_filename, mmap_mode="r+")
 
             if (filetype == 'action') and full_action_set:
                 action_mapping = dict(zip(data_.unique().numpy(),
-                                        AtariEnv(re.sub(r'(?<!^)(?=[A-Z])', '_', game).lower()).ale.getMinimalActionSet()))
+                                          AtariEnv(re.sub(r'(?<!^)(?=[A-Z])', '_', game).lower()).ale.getMinimalActionSet()))
                 data_.apply_(lambda x: action_mapping[x])
             if dataset_on_gpu:
                 print("Stored on GPU")
@@ -172,6 +174,8 @@ class ATARILoader(BaseLoader):
         self.group_read_factor = group_read_factor
         self.shuffle_checkpoints = shuffle_checkpoints
 
+        self.trajectory_size = self.batch_size // self.k_step
+
     def get_dataloader(self):
         def collate(batch):
             frames = self.frames
@@ -208,7 +212,7 @@ class ATARILoader(BaseLoader):
         if self.group_read_factor != 0:
             sampler = CacheEfficientSampler(dataset.num_blocks, dataset.block_len, self.group_read_factor)
             dataloader = DataLoader(dataset, 
-                                    batch_size=self.batch_size,
+                                    batch_size=self.trajectory_size,
                                     sampler=sampler,
                                     num_workers=self.num_workers,
                                     pin_memory=self.pin_memory,
@@ -217,7 +221,7 @@ class ATARILoader(BaseLoader):
                                     prefetch_factor=self.prefetch_factor)
         else:
             dataloader = DataLoader(dataset, 
-                                    batch_size=self.batch_size,
+                                    batch_size=self.trajectory_size,
                                     shuffle=True,
                                     num_workers=self.num_workers,
                                     pin_memory=self.pin_memory,

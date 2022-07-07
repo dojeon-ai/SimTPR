@@ -12,4 +12,6 @@ model_path: ''
 defaults:
 - _self_
 - dataloader: mixed
+- env: atari
+- trainer: byol
 - model: nature_byol

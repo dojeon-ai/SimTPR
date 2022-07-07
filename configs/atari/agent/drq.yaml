@@ -1,4 +1,4 @@
-# agent
+# defaults
 type: 'rainbow'
 num_timesteps: 100000 # 100k
 obs_shape: None
