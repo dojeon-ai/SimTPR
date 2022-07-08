@@ -2,16 +2,17 @@ type: 'atari'
 data_path: '/home/nas3_userK/hojoonlee/projects/video_rl/data/atari'
 tmp_data_path: '/home/nas3_userK/hojoonlee/projects/video_rl/data/atari'
 game: 'Pong' # requires camel case
-checkpoints: [1]
+checkpoints: [50]
 frames: 4
-k_step: 8
+t_step: 4
 max_size: 1000000 # 1e6
-dataset_on_gpu: False
-dataset_on_disk: True
+dataset_on_gpu: True #False
+dataset_on_disk: False #True
 batch_size: 256
 full_action_set: True
-num_workers: 4
-pin_memory: True
-prefetch_factor: 8 # recommend to use num_workers * 2 
+num_workers: 0 # 0 means that the data will be loaded in the main process
+pin_memory: False # True 
+prefetch_factor: 2 # recommend to use num_workers * 2 
 group_read_factor: 0 
 shuffle_checkpoints: False
+device: 'cuda:0'

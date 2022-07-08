@@ -34,8 +34,8 @@ class WandbTrainerLogger(object):
         log_data = self.logger.fetch_log()
         wandb.log(log_data, step=self.step)
 
-    def save_state_dict(self, model):
-        name = self.cfg.dataloader.game + '/' + str(self.cfg.seed) + '/' + str(self.step) + '/model.pth'
+    def save_state_dict(self, model, epoch=1):
+        name = self.cfg.dataloader.game + '/' + str(self.cfg.seed) + '/' + str(epoch) + '/model.pth'
         path = wandb.run.dir + '/' + name
         _dir = os.path.dirname(path)
         if not os.path.exists(_dir):

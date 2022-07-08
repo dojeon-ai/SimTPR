@@ -20,12 +20,14 @@ class DQNReplayDataset(Dataset):
                  game: str,
                  checkpoint: int,
                  frames: int,
-                 k_step: int,
+                 t_step: int,
                  max_size: int,
                  full_action_set: bool,
                  dataset_on_gpu: bool,
-                 dataset_on_disk: bool) -> None:
+                 dataset_on_disk: bool,
+                 device: str) -> None:
 
+        device = torch.device(device)
         data = []
         self.dataset_on_disk = dataset_on_disk
         assert not (dataset_on_disk and dataset_on_gpu)
@@ -71,16 +73,16 @@ class DQNReplayDataset(Dataset):
                 data_.apply_(lambda x: action_mapping[x])
             if dataset_on_gpu:
                 print("Stored on GPU")
-                data_ = data_.cuda(non_blocking=True)
+                data_ = data_.to(device) #cuda(non_blocking=True).to(device)
                 del data___
             data.append(data_)
             setattr(self, filetype, data_)
 
         self.game = game
         self.f = frames
-        self.k = k_step
+        self.t = t_step
         self.size = min(self.action.shape[0], max_size)
-        self.effective_size = (self.size - self.f - self.k + 1)
+        self.effective_size = (self.size - self.f - self.t + 1)
 
     def __len__(self) -> int:
         return self.effective_size
@@ -88,7 +90,7 @@ class DQNReplayDataset(Dataset):
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         # batch_ind = index // self.effective_size
         time_ind = index % self.effective_size
-        sl = slice(time_ind, time_ind+self.f+self.k)
+        sl = slice(time_ind, time_ind+self.f+self.t)
         if self.dataset_on_disk:
             obs = torch.from_numpy(self.observation[sl])
         else:
@@ -107,22 +109,24 @@ class MultiDQNReplayDataset(Dataset):
                 game: str,
                 checkpoints: List[int],
                 frames: int,
-                k_step: int,
+                t_step: int,
                 max_size: int,
                 full_action_set: bool,
                 dataset_on_gpu: bool,
-                dataset_on_disk: bool) -> None:
+                dataset_on_disk: bool,
+                device: str) -> None:
         
         self.datasets =[DQNReplayDataset(data_path,
                         tmp_data_path,
                         game,
                         ckpt,
                         frames,
-                        k_step,
+                        t_step,
                         max_size,
                         full_action_set,
                         dataset_on_gpu,
-                        dataset_on_disk) for ckpt in checkpoints]
+                        dataset_on_disk,
+                        device) for ckpt in checkpoints]
 
         self.num_blocks = len(self.datasets)
         self.block_len = len(self.datasets[0])
@@ -144,7 +148,7 @@ class ATARILoader(BaseLoader):
                  game: str,
                  checkpoints: List[int],
                  frames: int,
-                 k_step: int, # length of the future trajectory to predict
+                 t_step: int, # length of the trajectory to predict
                  max_size: int,
                  dataset_on_gpu: bool,
                  dataset_on_disk: bool,
@@ -153,6 +157,7 @@ class ATARILoader(BaseLoader):
                  num_workers: int,
                  pin_memory: bool,
                  prefetch_factor: int,
+                 device: str,
                  group_read_factor: int=0,
                  shuffle_checkpoints: bool=False):
         
@@ -162,7 +167,7 @@ class ATARILoader(BaseLoader):
         self.game = game
         self.checkpoints = checkpoints
         self.frames = frames
-        self.k_step = k_step
+        self.t_step = t_step
         self.max_size = max_size
         self.dataset_on_gpu = dataset_on_gpu
         self.dataset_on_disk = dataset_on_disk
@@ -171,10 +176,11 @@ class ATARILoader(BaseLoader):
         self.num_workers = num_workers
         self.pin_memory = pin_memory
         self.prefetch_factor = prefetch_factor
+        self.device = device
         self.group_read_factor = group_read_factor
         self.shuffle_checkpoints = shuffle_checkpoints
 
-        self.trajectory_size = self.batch_size // self.k_step
+        self.trajectory_size = self.batch_size // self.t_step
 
     def get_dataloader(self):
         def collate(batch):
@@ -198,11 +204,12 @@ class ATARILoader(BaseLoader):
                                         self.game, 
                                         self.checkpoints, 
                                         self.frames, 
-                                        self.k_step, 
+                                        self.t_step, 
                                         self.max_size,
                                         self.full_action_set, 
                                         self.dataset_on_gpu, 
-                                        self.dataset_on_disk)
+                                        self.dataset_on_disk,
+                                        self.device)
 
         if self.shuffle_checkpoints:
             data = get_from_dataloaders(dataset.datasets)

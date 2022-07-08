@@ -10,6 +10,7 @@ from src.trainers import build_trainer
 from typing import List
 from dotmap import DotMap
 import torch
+import wandb
 import numpy as np
 import re
 
@@ -29,6 +30,8 @@ def run(args):
     device = torch.device(cfg.device)
 
     # dataset
+    # torch.set_num_threads(1)<- when dataset on disk
+    cfg.dataloader.device = cfg.device
     dataloader = build_dataloader(cfg.dataloader)
 
     # shape config
@@ -52,13 +55,14 @@ def run(args):
 
     # train
     trainer.train()
+    wandb.finish()
     return logger
     
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(allow_abbrev=False)
     parser.add_argument('--config_dir',  type=str,    default='atari')
-    parser.add_argument('--config_name', type=str,    default='mixed_byol_nature') 
+    parser.add_argument('--config_name', type=str,    default='mixed_simclr_nature') 
     parser.add_argument('--overrides',   action='append', default=[])
     args = parser.parse_args()
 

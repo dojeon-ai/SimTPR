@@ -80,7 +80,7 @@ class BYOLTrainer(BaseTrainer):
                 # forward
                 obs = batch.observation.to(self.device)
                 done = batch.done.to(self.device)
-                loss = self._get_loss(obs, done)
+                loss = self._compute_loss(obs, done)
                 
                 # backward
                 self.optimizer.zero_grad()
