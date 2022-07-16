@@ -80,8 +80,7 @@ class WandbAgentLogger(object):
         self._use_pretrained_model = False
         if cfg.use_artifact:
             artifact = wandb.run.use_artifact(str(cfg.artifact_name) + ':latest')
-            model_name = cfg.env.game + '/seed=' + str(cfg.seed) + '/' + str(cfg.ckpt) + '/model.pth'
-            model_path = artifact.get_path(model_name).download()
+            model_path = artifact.get_path(cfg.model_path).download()
             self.pretrained_model_path = model_path
             self._use_pretrained_model = True
 

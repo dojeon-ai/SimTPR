@@ -30,7 +30,7 @@ def run(args):
     device = torch.device(cfg.device)
 
     # dataset
-    # torch.set_num_threads(1)<- when dataset on disk
+    torch.set_num_threads(1)#<- when dataset on disk
     cfg.dataloader.device = cfg.device
     dataloader = build_dataloader(cfg.dataloader)
 

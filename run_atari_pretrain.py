@@ -17,7 +17,7 @@ if __name__ == '__main__':
     parser.add_argument('--config_dir',   type=str,    default='atari')
     parser.add_argument('--config_name',  type=str,    default='mixed_simclr_nature') 
     parser.add_argument('--num_seeds',     type=int,   default=1)
-    parser.add_argument('--num_devices',   type=int,   default=3)
+    parser.add_argument('--num_devices',   type=int,   default=4)
     parser.add_argument('--num_exp_per_device',  type=int,  default=1)
     parser.add_argument('--overrides',    action='append',  default=[]) #'agent.num_timesteps=2500', 'agent.eval_every=2500']) 
     

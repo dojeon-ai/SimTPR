@@ -6,12 +6,12 @@ checkpoints: [50]
 frames: 4
 t_step: 4
 max_size: 1000000 # 1e6
-dataset_on_gpu: True #False
-dataset_on_disk: False #True
+dataset_on_gpu: False #True #False
+dataset_on_disk: True #False #True
 batch_size: 256
 full_action_set: True
 num_workers: 0 # 0 means that the data will be loaded in the main process
-pin_memory: False # True 
+pin_memory: True #False # True 
 prefetch_factor: 2 # recommend to use num_workers * 2 
 group_read_factor: 0 
 shuffle_checkpoints: False

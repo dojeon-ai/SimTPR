@@ -25,6 +25,8 @@ class Model(nn.Module):
         for name, param in _pretrained_state_dict.items():
             if 'backbone' in name:
                 pretrained_state_dict[name] = param
-            elif 'policy' in name:
-                pretrained_state_dict[name] = param
+            if name == 'head.projector.0.weight':
+                pretrained_state_dict['policy.fc_v.0.weight_mu'] = param
+                pretrained_state_dict['policy.fc_adv.0.weight_mu'] = param
+                
         self.load_state_dict(pretrained_state_dict, strict=False)

@@ -55,7 +55,7 @@ class SimCLRTrainer(BaseTrainer):
                                           num_trajectory=N, 
                                           temperature=self.cfg.temperature, 
                                           device=self.device)
-        loss = loss_fn(z)
+        loss = loss_fn(z, done)
         return loss
 
     def train(self):

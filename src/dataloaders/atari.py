@@ -65,7 +65,7 @@ class DQNReplayDataset(Dataset):
 
                     del data___
                     del data__
-                    data_ = np.load(new_filename, mmap_mode="r+")
+                    data_ = np.load(new_filename) #, mmap_mode="r+")
 
             if (filetype == 'action') and full_action_set:
                 action_mapping = dict(zip(data_.unique().numpy(),

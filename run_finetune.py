@@ -61,7 +61,7 @@ def run(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(allow_abbrev=False)
     parser.add_argument('--config_dir',  type=str,    default='atari')
-    parser.add_argument('--config_name', type=str,    default='der_de') 
+    parser.add_argument('--config_name', type=str,    default='drq_impala') 
     parser.add_argument('--overrides',   action='append', default=[])
     args = parser.parse_args()
 

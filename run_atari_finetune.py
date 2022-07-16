@@ -4,6 +4,7 @@ import json
 import copy
 import wandb
 import itertools
+import os
 import multiprocessing as mp
 from multiprocessing import Pool
 from src.envs.atari import *
@@ -12,22 +13,24 @@ import numpy as np
 
 
 if __name__ == '__main__':
+    os.environ['WANDB_API_KEY']='96022b49a4e5c639895ba1e229022e087f79c84a'
     parser = argparse.ArgumentParser(allow_abbrev=False)
-    parser.add_argument('--exp_name',     type=str,    default='otr',  help='name for the parallel runs')
+    parser.add_argument('--exp_name',     type=str,    default='drq_impala_1e3',  help='name for the parallel runs')
     parser.add_argument('--config_dir',   type=str,    default='atari')
-    parser.add_argument('--config_name',  type=str,    default='otr_nature') 
-    parser.add_argument('--num_seeds',     type=int,   default=3)
+    parser.add_argument('--config_name',  type=str,    default='drq_impala') 
+    parser.add_argument('--num_seeds',     type=int,   default=5)
     parser.add_argument('--num_devices',   type=int,   default=4)
-    parser.add_argument('--num_exp_per_device',  type=int,  default=4)
-    parser.add_argument('--overrides',    action='append',  default=[]) #'agent.num_timesteps=2500', 'agent.eval_every=2500']) 
-    
+    parser.add_argument('--num_exp_per_device',  type=int,  default=3)
+    parser.add_argument('--overrides',    action='append',  default=[]) 
+    #'agent.num_timesteps=2500', 'agent.eval_every=2500']) 
+
     args = vars(parser.parse_args())
     seeds = np.arange(args.pop('num_seeds'))
     games = list(atari_human_scores.keys())
+    # games = ['alien', 'asterix', 'ms_pacman', 'pong', 'qbert', 'seaquest']
     num_devices = args.pop('num_devices')
     num_exp_per_device = args.pop('num_exp_per_device')
     pool_size = num_devices * num_exp_per_device 
-
 
     # snake case to camel case
     # name = ''.join(word.title() for word in name.split('_'))
@@ -43,6 +46,12 @@ if __name__ == '__main__':
         exp['overrides'].append('seed=' + str(seed))
         exp['overrides'].append('env.game=' + str(game))
         exp['overrides'].append('device=' + 'cuda:' + str(device_id))
+
+        # TEST
+        #exp['overrides'].append('use_artifact=True')
+        #exp['overrides'].append('artifact_name=simclr')
+        #camel_game = ''.join(word.title() for word in str(game).split('_'))
+        #exp['overrides'].append('model_path=' + camel_game + '/0/25/model.pth')
 
         experiments.append(exp)
         device_id += 1
