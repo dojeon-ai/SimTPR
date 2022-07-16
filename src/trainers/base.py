@@ -15,6 +15,10 @@ class BaseTrainer(metaclass=ABCMeta):
     def _build_optimizer(self):
         pass
 
+    @abstractmethod
+    def _build_scheduler(self):
+        pass
+        
     def create_state_dict(self):
         return {
             'model_state_dict': self.model.module.state_dict(),

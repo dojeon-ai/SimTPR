@@ -29,6 +29,8 @@ class SimCLRTrainer(BaseTrainer):
         self.aug_func = aug_func.to(self.device)
         self.model = model.to(self.device)
         self.optimizer = self._build_optimizer(cfg.optimizer)
+        self.update_epochs = cfg.num_epochs // cfg.time_span
+        self.lr_scheduler = self._build_scheduler(self.optimizer, self.update_epochs)
 
     def _build_optimizer(self, optimizer_cfg):
         optimizer_type = optimizer_cfg.pop('type')
@@ -37,6 +39,9 @@ class SimCLRTrainer(BaseTrainer):
                               **optimizer_cfg)
         else:
             raise ValueError
+
+    def _build_scheduler(self, optimizer, num_epochs):
+        return optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_epochs)
 
     def _compute_loss(self, obs, done):
         # obs
@@ -61,7 +66,7 @@ class SimCLRTrainer(BaseTrainer):
     def train(self):
         self.model.train()
         t = 0
-        for e in range(1, self.cfg.num_epochs+1):
+        for e in range(1, self.update_epochs+1):
             for batch in tqdm.tqdm(self.dataloader):
                 # forward
                 obs = batch.observation.to(self.device)
@@ -84,6 +89,8 @@ class SimCLRTrainer(BaseTrainer):
             
             if e % self.cfg.eval_every == 0:
                 self.logger.save_state_dict(model=self.model, epoch=e)
+
+            self.lr_scheduler.step()
 
     def evaluate(self):
         self.model.eval()

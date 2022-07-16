@@ -47,6 +47,7 @@ def run(args):
     model = build_model(cfg.model)
 
     # agent
+    cfg.trainer.time_span = cfg.dataloader.t_step
     trainer = build_trainer(cfg=cfg.trainer,
                             dataloader=dataloader,
                             device=device,

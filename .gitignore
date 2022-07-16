@@ -118,5 +118,7 @@ __pycache__
 *.npy
 *.out
 **/origin/**
-data
+data/atari
+data/mujoco
+data/youtube
 artifacts

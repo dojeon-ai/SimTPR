@@ -22,19 +22,19 @@ class TemporalContrastiveLoss(nn.Module):
         
         # masking
         # logits_mask: exclude main diagonal in softmax
-        # temporal_mask: select log probability within the temporal window
-        # done_mask: do not select the logits after done
         logits_mask = torch.eye(z.shape[0], device=self.device)
+        # temporal_mask: select log probability within the temporal window
         temporal_mask = torch.block_diag(*torch.ones(N, T, T, device=self.device))
         temporal_mask = temporal_mask.repeat(2,2)
-        
-        # TODO: 첫 done은 True
-        # TODO: 현재 done은 미래 timestep의 state들에 대해 False를 부여하지 않음.
-        done = done.reshape(N, T)
-        done_idx = (done == 1).nonzero(as_tuple=False)
-        
-
-        done_mask = 1 - done.float()
+        # done_mask: do not select the logits after done (different trajectory)
+        done = done.float().T
+        done_idx = torch.nonzero(done==1)
+        for idx in done_idx:
+            row = idx[0]
+            col = idx[1]
+            done[row, col] = 0
+            done[row, col+1:] = 1
+        done_mask = 1 - done.flatten().float()
         done_mask = torch.mm(done_mask.unsqueeze(1), done_mask.unsqueeze(0))
         done_mask = done_mask * torch.block_diag(*torch.ones(N,T,T, device=self.device))
         done_mask = done_mask.repeat(2,2)

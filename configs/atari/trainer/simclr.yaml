@@ -1,6 +1,8 @@
 # defaults
 type: 'simclr'
-num_epochs: 25
+num_epochs: 100
+time_span: 4
+
 obs_shape: None
 action_size: None
 aug_types: [random_shift, intensity]
