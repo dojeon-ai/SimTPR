@@ -1,6 +1,8 @@
 # defaults
 type: 'byol'
 num_epochs: 10 
+time_span: 4
+
 obs_shape: None
 action_size: None
 aug_types: [random_shift, intensity]
@@ -17,4 +19,4 @@ tau: 0.99
 
 # logging
 log_every: 10
-eval_every: 100000
+eval_every: 5
