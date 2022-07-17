@@ -1,5 +1,6 @@
 from .base import BaseTrainer
 from src.common.train_utils import LinearScheduler
+from src.common.losses import TemporalConsistencyLoss
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -72,13 +73,7 @@ class BYOLTrainer(BaseTrainer):
         loss_fn = TemporalConsistencyLoss(time_span=T, 
                                           num_trajectory=N, 
                                           device=self.device)
-        loss = -0.5 * (loss_fn(p1_o, z2_t, done) + loss_fn(p2_o, z1_t, done))
-
-        # TODO: (1) change loss (2) reflect dones
-        # Temporal BYOL Loss
-        #p1_o, p2_o = p1_o.repeat([T, 1]), p2_o.repeat([T, 1])
-        #loss = -0.5 * (F.cosine_similarity(p1_o, z2_t.detach(), dim=-1).mean() 
-        #                + F.cosine_similarity(p2_o, z1_t.detach(), dim=-1).mean()) 
+        loss = 0.5 * (loss_fn(p1_o, z2_t, done) + loss_fn(p2_o, z1_t, done))
         
         return loss
 

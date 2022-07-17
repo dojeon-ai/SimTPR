@@ -2,11 +2,11 @@
 backbone:
     type: 'impala'
     obs_shape: None # not pre-defined
-    renormalize: True
+    renormalize: False
     init_type: None
 head:
     type: byol
-    in_features: 2048
+    in_features: 2304
     hid_features: 512
     out_features: 512
 policy:
