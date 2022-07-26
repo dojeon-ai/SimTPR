@@ -1,6 +1,7 @@
 # OT-Rainbow
-project_name: 'atari100k'
-exp_name: 'byol'
+project_name: 'atari_pretrain'
+entity: 'draftrec'
+exp_name: 'simclr_nature'
 device: cuda:0
 seed: 0
 
@@ -13,5 +14,5 @@ defaults:
 - _self_
 - dataloader: mixed
 - env: atari
-- trainer: byol
-- model: nature_byol
+- trainer: simclr
+- model: nature_simclr

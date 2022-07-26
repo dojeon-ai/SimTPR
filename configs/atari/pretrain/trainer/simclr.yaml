@@ -1,6 +1,6 @@
 # defaults
 type: 'simclr'
-num_epochs: 100
+num_epochs: 32
 time_span: 4
 
 obs_shape: None
@@ -10,13 +10,18 @@ aug_types: [random_shift, intensity]
 optimizer:
     type: 'adam'
     lr: 0.0001
-    weight_decay: 0.0
+    weight_decay: 0.000001 #1e-6
     betas: [0.9, 0.999]
     eps: 0.00015
 
 # updates
+batch_size: None
+update_freq: None
+base_batch_size: 32
+base_update_freq: 16
 temperature: 0.1
 
 # logging
-log_every: 10
-eval_every: 5
+log_every: 100
+eval_every: 10
+save_every: 4

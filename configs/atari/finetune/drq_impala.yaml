@@ -1,6 +1,7 @@
 # OT-Rainbow
-project_name: 'atari100k'
-exp_name: 'byol'
+project_name: 'atari_finetune'
+entity: 'draftrec'
+exp_name: 'drq_impala'
 device: cuda:0
 seed: 0
 
@@ -11,7 +12,6 @@ model_path: ''
 
 defaults:
 - _self_
-- dataloader: mixed
+- agent: drq
 - env: atari
-- trainer: byol
-- model: impala_byol
+- model: impala

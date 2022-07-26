@@ -5,11 +5,9 @@ backbone:
     renormalize: False
     init_type: None
 head:
-    type: None
-policy:
-    type: 'rainbow'
-    in_features: 2304
+    type: byol
+    in_features: 3136
     hid_features: 512
-    action_size: None # not pre-defined
-    num_atoms: 51
-    noisy_std: 0.5
+    out_features: 512
+policy:
+    type: None

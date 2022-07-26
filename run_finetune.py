@@ -21,7 +21,6 @@ def run(args):
 
     # Hydra Compose
     config_path = './configs/' + config_dir 
-    # hydra.core.global_hydra.GlobalHydra.instance().clear()
     initialize(version_base=None, config_path=config_path) 
     cfg = compose(config_name=config_name, overrides=overrides)
     
@@ -39,10 +38,11 @@ def run(args):
     # model
     model = build_model(cfg.model)
 
+    # load-pretrained
     if logger.use_pretrained_model:
         pretrained_model_path = logger.get_pretrained_model_path()
-        checkpoint = logger.load_state_dict(pretrained_model_path)
-        model.load_backbone_and_policy(checkpoint)
+        state_dict = logger.load_state_dict(pretrained_model_path)
+        model.load_backbone(state_dict)
 
     # agent
     agent = build_agent(cfg=cfg.agent,
@@ -60,7 +60,7 @@ def run(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(allow_abbrev=False)
-    parser.add_argument('--config_dir',  type=str,    default='atari')
+    parser.add_argument('--config_dir',  type=str,    default='atari/finetune')
     parser.add_argument('--config_name', type=str,    default='drq_impala') 
     parser.add_argument('--overrides',   action='append', default=[])
     args = parser.parse_args()

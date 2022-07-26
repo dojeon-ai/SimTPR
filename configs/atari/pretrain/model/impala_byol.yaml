@@ -6,7 +6,7 @@ backbone:
     init_type: None
 head:
     type: byol
-    in_features: 2304
+    in_features: 3136
     hid_features: 512
     out_features: 512
 policy:

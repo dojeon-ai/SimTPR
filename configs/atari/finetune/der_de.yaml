@@ -1,6 +1,7 @@
 # OT-Rainbow
-project_name: 'atari_pretrain'
-exp_name: 'simclr'
+project_name: 'atari_finetune'
+entity: 'draftrec'
+exp_name: 'der'
 device: cuda:0
 seed: 0
 
@@ -11,7 +12,6 @@ model_path: ''
 
 defaults:
 - _self_
-- dataloader: mixed
+- agent: der
 - env: atari
-- trainer: simclr
-- model: nature_simclr
+- model: de

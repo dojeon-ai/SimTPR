@@ -186,6 +186,7 @@ class ATARILoader(BaseLoader):
         def collate(batch):
             frames = self.frames
             observation, action, reward, done = torch.utils.data.dataloader.default_collate(batch)
+            """
             # tbcfhw: standard format for ATC
             observation = torch.einsum('bthw->tbhw', observation).unsqueeze(2).repeat(1, 1, frames, 1, 1)
             for i in range(1, frames):
@@ -196,7 +197,18 @@ class ATARILoader(BaseLoader):
             reward = torch.einsum('bt->tb', reward)[frames-1:-1]
             reward = torch.nan_to_num(reward).sign()  # Apparently possible, somehow.
             done = torch.einsum('bt->tb', done)[frames-1:-1].bool()
-
+            """
+            # btfhw
+            observation = observation.unsqueeze(2).repeat(1, 1, frames, 1, 1)
+            for i in range(1, frames):
+                observation[:, :, i] = observation[:, :, i].roll(-i, 1)
+            observation = observation[:, :-frames] # do not use the last frame (just to make t=k)
+            observation = observation.unsqueeze(3)
+            action = action[:, frames-1:-1].long()
+            reward = reward[:, frames-1:-1]
+            reward = torch.nan_to_num(reward).sign()  # Apparently possible, somehow.
+            done = done[:, frames-1:-1].bool()
+            
             return sanitize_batch(OfflineSamples(observation, action, reward, done))
 
         dataset = MultiDQNReplayDataset(self.data_path, 

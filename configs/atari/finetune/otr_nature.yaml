@@ -1,6 +1,7 @@
 # OT-Rainbow
-project_name: 'atari100k'
-exp_name: 'drq'
+project_name: 'atari_finetune'
+entity: 'draftrec'
+exp_name: 'otr'
 device: cuda:0
 seed: 0
 
@@ -11,6 +12,6 @@ model_path: ''
 
 defaults:
 - _self_
-- agent: drq
+- agent: otr
 - env: atari
-- model: impala
+- model: nature

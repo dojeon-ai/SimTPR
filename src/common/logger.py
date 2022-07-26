@@ -12,7 +12,8 @@ class WandbTrainerLogger(object):
     def __init__(self, cfg):
         self.cfg = cfg
         dict_cfg = OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
-        wandb.init(project=cfg.project_name, 
+        wandb.init(project=cfg.project_name,
+                   entity=cfg.entity,
                    config=dict_cfg,
                    group=cfg.exp_name,
                    settings=wandb.Settings(start_method="thread"))    
@@ -72,6 +73,7 @@ class WandbAgentLogger(object):
         self.cfg = cfg
         dict_cfg = OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
         wandb.init(project=cfg.project_name, 
+                   entity=cfg.entity,
                    config=dict_cfg,
                    group=cfg.exp_name,
                    reinit=True,
@@ -79,7 +81,7 @@ class WandbAgentLogger(object):
 
         self._use_pretrained_model = False
         if cfg.use_artifact:
-            artifact = wandb.run.use_artifact(str(cfg.artifact_name) + ':latest')
+            artifact = wandb.run.use_artifact(str(cfg.artifact_name))
             model_path = artifact.get_path(cfg.model_path).download()
             self.pretrained_model_path = model_path
             self._use_pretrained_model = True

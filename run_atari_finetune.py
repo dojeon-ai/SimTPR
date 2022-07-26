@@ -13,16 +13,16 @@ import numpy as np
 
 
 if __name__ == '__main__':
-    os.environ['WANDB_API_KEY']='96022b49a4e5c639895ba1e229022e087f79c84a'
     parser = argparse.ArgumentParser(allow_abbrev=False)
-    parser.add_argument('--exp_name',     type=str,     default='drq_impala_1e3',  help='name for the parallel runs')
-    parser.add_argument('--config_dir',   type=str,     default='atari')
+    parser.add_argument('--exp_name',     type=str,     default='drq_impala')
+    parser.add_argument('--mode',         type=str,     choices=['test','full'])
+    parser.add_argument('--config_dir',   type=str,     default='atari/finetune')
     parser.add_argument('--config_name',  type=str,     default='drq_impala') 
     parser.add_argument('--use_artifact', type=bool,    default=False)
-    parser.add_argument('--artifact_name',type=str,     default='simclr')
-    parser.add_argument('--model_path',   type=str,     default='0/100/model.pth')
+    parser.add_argument('--artifact_name',type=str,     default='') # simclr
+    parser.add_argument('--model_path',   type=str,     default='') # 0/8/model.pth
     parser.add_argument('--num_seeds',     type=int,    default=5)
-    parser.add_argument('--num_devices',   type=int,   default=4)
+    parser.add_argument('--num_devices',   type=int,    default=4)
     parser.add_argument('--num_exp_per_device',  type=int,  default=3)
     parser.add_argument('--overrides',    action='append',  default=[]) 
 
@@ -32,6 +32,11 @@ if __name__ == '__main__':
     num_devices = args.pop('num_devices')
     num_exp_per_device = args.pop('num_exp_per_device')
     pool_size = num_devices * num_exp_per_device 
+    
+    # mode
+    mode = args.pop('mode')
+    if mode == 'test':
+        games = ['alien', 'breakout', 'ms_pacman', 'qbert']
 
     # create configurations for child run
     experiments = []
@@ -45,6 +50,7 @@ if __name__ == '__main__':
         exp['overrides'].append('env.game=' + str(game))
         exp['overrides'].append('device=' + 'cuda:' + str(device_id))
 
+        # start from pretrain if use artifact
         use_artifact = exp.pop('use_artifact')
         artifact_name = exp.pop('artifact_name')
         model_path = exp.pop('model_path')
@@ -91,7 +97,8 @@ if __name__ == '__main__':
 
     ####################
     # wandb
-    wandb.init(project='atari100k', 
+    wandb.init(project='atari_finetune',
+               entity='draftrec',
                config=args,
                group=args['exp_name'],
                settings=wandb.Settings(start_method="thread"))  

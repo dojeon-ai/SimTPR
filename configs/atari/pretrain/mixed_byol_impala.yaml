@@ -1,6 +1,7 @@
 # OT-Rainbow
 project_name: 'atari_pretrain'
-exp_name: 'simclr'
+entity: 'draftrec'
+exp_name: 'byol_impala'
 device: cuda:0
 seed: 0
 
@@ -13,5 +14,5 @@ defaults:
 - _self_
 - dataloader: mixed
 - env: atari
-- trainer: simclr
-- model: impala_simclr
+- trainer: byol
+- model: impala_byol

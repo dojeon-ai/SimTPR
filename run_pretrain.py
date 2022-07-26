@@ -48,6 +48,11 @@ def run(args):
 
     # agent
     cfg.trainer.time_span = cfg.dataloader.t_step
+    cfg.trainer.batch_size = cfg.dataloader.batch_size
+    N = cfg.trainer.batch_size // cfg.trainer.base_batch_size
+    cfg.trainer.update_freq = cfg.trainer.base_update_freq // N
+    cfg.trainer.optimizer.lr = cfg.trainer.optimizer.lr * N
+    
     trainer = build_trainer(cfg=cfg.trainer,
                             dataloader=dataloader,
                             device=device,
@@ -62,7 +67,7 @@ def run(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(allow_abbrev=False)
-    parser.add_argument('--config_dir',  type=str,    default='atari')
+    parser.add_argument('--config_dir',  type=str,    default='atari/pretrain')
     parser.add_argument('--config_name', type=str,    default='mixed_byol_impala') 
     parser.add_argument('--overrides',   action='append', default=[])
     args = parser.parse_args()

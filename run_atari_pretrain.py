@@ -13,20 +13,27 @@ import numpy as np
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(allow_abbrev=False)
-    parser.add_argument('--exp_name',     type=str,    default='simclr',  help='name for the parallel runs')
-    parser.add_argument('--config_dir',   type=str,    default='atari')
-    parser.add_argument('--config_name',  type=str,    default='mixed_simclr_nature') 
+    parser.add_argument('--exp_name',     type=str,    default='byol')
+    parser.add_argument('--mode',         type=str,    choices=['test','full'])
+    parser.add_argument('--config_dir',   type=str,    default='atari/pretrain')
+    parser.add_argument('--config_name',  type=str,    default='mixed_byol_impala') 
     parser.add_argument('--num_seeds',     type=int,   default=1)
     parser.add_argument('--num_devices',   type=int,   default=4)
-    parser.add_argument('--num_exp_per_device',  type=int,  default=1)
-    parser.add_argument('--overrides',    action='append',  default=[]) #'agent.num_timesteps=2500', 'agent.eval_every=2500']) 
+    parser.add_argument('--num_exp_per_device',  type=int,  default=2)
+    parser.add_argument('--overrides',    action='append',  default=[]) 
+    #'agent.num_timesteps=2500', 'agent.eval_every=2500']) 
     
     args = vars(parser.parse_args())
     seeds = np.arange(args.pop('num_seeds'))
-    _games = ['alien', 'asterix', 'ms_pacman', 'pong', 'qbert', 'seaquest']
+    _games = list(atari_human_scores.keys())
     num_devices = args.pop('num_devices')
     num_exp_per_device = args.pop('num_exp_per_device')
     pool_size = num_devices * num_exp_per_device 
+    
+    # mode
+    mode = args.pop('mode')
+    if mode == 'test':
+        _games = ['alien', 'breakout', 'ms_pacman', 'qbert']
 
     # snake case to camel case
     games = []
@@ -68,7 +75,8 @@ if __name__ == '__main__':
 
     ####################
     # wandb
-    wandb.init(project='atari100k', 
+    wandb.init(project='atari_pretrain',
+               entity='draftrec',
                config=args,
                group=args['exp_name'],
                settings=wandb.Settings(start_method="thread"))  

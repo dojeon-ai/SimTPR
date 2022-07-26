@@ -1,5 +1,6 @@
 # OT-Rainbow
-project_name: 'atari100k'
+project_name: 'atari_finetune'
+entity: 'draftrec'
 exp_name: 'drq'
 device: cuda:0
 seed: 0
