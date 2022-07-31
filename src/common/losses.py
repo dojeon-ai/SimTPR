@@ -4,10 +4,9 @@ import torch.nn.functional as F
 
 INF = 1e9
 
-# Temporal extension of SimCLR loss
-# Identical to the SimCLR loss if T=1
 class TemporalContrastiveLoss(nn.Module):
-
+    # Temporal extension of SimCLR loss
+    # Identical to the SimCLR loss if T=1
     def __init__(self, num_trajectory, time_span, temperature, device):
         super().__init__()
         self.num_trajectory = num_trajectory
@@ -58,9 +57,9 @@ class TemporalContrastiveLoss(nn.Module):
         
         return loss
 
-# Temporal extension of CURL loss
-# Identical to the CURL loss if T=1
 class TemporalCURLLoss(nn.Module):
+    # Temporal extension of CURL loss
+    # Identical to the CURL loss if T=1
     def __init__(self, num_trajectory, time_span, temperature, device):
         super().__init__()
         self.num_trajectory = num_trajectory
@@ -109,7 +108,6 @@ class TemporalCURLLoss(nn.Module):
 class TemporalConsistencyLoss(nn.Module):
     # Temporal extension of BYOL loss
     # Identical to the BYOL loss if T=1
-
     def __init__(self, num_trajectory, time_span, device):
         super().__init__()
         self.num_trajectory = num_trajectory

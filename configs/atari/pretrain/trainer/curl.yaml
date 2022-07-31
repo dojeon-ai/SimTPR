@@ -23,6 +23,6 @@ temperature: 0.1
 tau: 0.99
 
 # logging
-log_every: 100
+log_every: 1000
 eval_every: 10
-save_every: 16
+save_every: 10
