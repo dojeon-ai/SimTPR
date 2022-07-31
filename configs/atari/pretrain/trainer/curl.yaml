@@ -1,0 +1,28 @@
+# defaults
+type: 'curl'
+num_epochs: 32
+time_span: None
+
+obs_shape: None
+action_size: None
+aug_types: [random_shift, intensity]
+
+optimizer:
+    type: 'adam'
+    lr: 0.0001
+    weight_decay: 0.0000001 #1e-6
+    betas: [0.9, 0.999]
+    eps: 0.00015
+
+# updates
+batch_size: None
+update_freq: None
+base_batch_size: 32
+base_update_freq: 16
+temperature: 0.1
+tau: 0.99
+
+# logging
+log_every: 100
+eval_every: 10
+save_every: 16

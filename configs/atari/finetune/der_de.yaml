@@ -1,6 +1,7 @@
 # OT-Rainbow
 project_name: 'atari_finetune'
 entity: 'draftrec'
+group_name: 'test'
 exp_name: 'der'
 device: cuda:0
 seed: 0

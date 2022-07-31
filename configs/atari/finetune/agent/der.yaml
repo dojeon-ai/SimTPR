@@ -13,6 +13,9 @@ buffer:
         initial_value: 0.4
         final_value: 1.0
         step_size: 100000
+        
+finetune_type: 'naive'
+backbone_lr_scale: 1.0
 
 optimizer:
     type: 'adam'

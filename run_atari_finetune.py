@@ -14,6 +14,7 @@ import numpy as np
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(allow_abbrev=False)
+    parser.add_argument('--group_name',   type=str,     default='test')
     parser.add_argument('--exp_name',     type=str,     default='drq_impala')
     parser.add_argument('--mode',         type=str,     choices=['test','full'])
     parser.add_argument('--config_dir',   type=str,     default='atari/finetune')
@@ -43,8 +44,10 @@ if __name__ == '__main__':
     device_id = 0
     for seed, game in itertools.product(*[seeds, games]):
         exp = copy.deepcopy(args)
+        group_name = exp.pop('group_name')
         exp_name = exp.pop('exp_name')
         device_id = int(device_id % num_devices)
+        exp['overrides'].append('group_name=' + group_name)
         exp['overrides'].append('exp_name=' + exp_name)
         exp['overrides'].append('seed=' + str(seed))
         exp['overrides'].append('env.game=' + str(game))

@@ -1,7 +1,7 @@
 # defaults
 type: 'byol'
 num_epochs: 32
-time_span: 4
+time_span: None
 
 obs_shape: None
 action_size: None
@@ -10,7 +10,7 @@ aug_types: [random_shift, intensity]
 optimizer:
     type: 'adam'
     lr: 0.0001
-    weight_decay: 0.000001 #1e-6
+    weight_decay: 0.0000001 #1e-6
     betas: [0.9, 0.999]
     eps: 0.00015
 
@@ -24,4 +24,4 @@ tau: 0.99
 # logging
 log_every: 100
 eval_every: 10
-save_every: 4
+save_every: 16

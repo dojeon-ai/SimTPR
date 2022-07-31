@@ -36,7 +36,20 @@ class RAINBOW(BaseAgent):
         self.target_model = copy.deepcopy(self.model).to(self.device)   
         for param in self.target_model.parameters():
             param.requires_grad = False     
-        self.optimizer = self._build_optimizer(cfg.optimizer)
+        finetune_type = cfg.pop('finetune_type')
+        if finetune_type == 'naive':
+            param_group = self.model.parameters()
+        elif finetune_type == 'freeze':
+            for param in self.model.backbone.parameters():
+                param.requires_grad = False
+            param_group = self.model.parameters()
+        elif finetune_type == 'reduced':
+            param_group = [
+                {'params': self.model.backbone.parameters(), 
+                 'lr': cfg.optimizer.lr * cfg.backbone_lr_scale},
+                {'params': self.model.policy.parameters()}
+            ]
+        self.optimizer = self._build_optimizer(param_group, cfg.optimizer)
 
         # distributional
         self.num_atoms = self.model.policy.get_num_atoms()
@@ -45,13 +58,13 @@ class RAINBOW(BaseAgent):
         self.support = torch.linspace(self.v_min, self.v_max, self.num_atoms).to(self.device)
         self.delta_z = (self.v_max - self.v_min) / (self.num_atoms - 1)
 
-    def _build_optimizer(self, optimizer_cfg):
+    def _build_optimizer(self, param_group, optimizer_cfg):
         optimizer_type = optimizer_cfg.pop('type')
         if optimizer_type == 'adam':
-            return optim.Adam(self.model.parameters(), 
+            return optim.Adam(param_group, 
                               **optimizer_cfg)
         elif optimizer_type == 'rmsprop':
-            return optim.RMSprop(self.model.parameters(), 
+            return optim.RMSprop(param_group, 
                                  **optimizer_cfg)
         else:
             raise ValueError
@@ -76,6 +89,8 @@ class RAINBOW(BaseAgent):
         return action
 
     def _update(self):
+        self.model.train()
+        self.target_model.train()
         idxs, obs_batch, act_batch, return_batch, done_batch, next_obs_batch, weights = self.buffer.sample(self.cfg.batch_size)
 
         # augment the observation if needed
@@ -147,15 +162,14 @@ class RAINBOW(BaseAgent):
         return log_data
 
     def train(self):
-        self.model.train()
-        self.target_model.train()
         obs = self.train_env.reset()
-
         for t in tqdm.tqdm(range(1, self.cfg.num_timesteps+1)):
             # encode last observation to torch.tensor()
             obs_tensor = self.buffer.encode_obs(obs, prediction=True)
 
             # get action from the model
+            # model should be train-mode for exploration
+            self.model.train()
             self.model.policy.reset_noise()
             action = self.predict(obs_tensor)
 
@@ -183,7 +197,6 @@ class RAINBOW(BaseAgent):
             if t % self.cfg.eval_every == 0:
                 self.logger.save_state_dict(model=self.model)
                 self.evaluate()
-                self.model.train()
 
             # move on
             # should not be done (cannot collect the return of trajectory)

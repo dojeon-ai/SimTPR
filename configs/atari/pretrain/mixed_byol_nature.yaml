@@ -1,6 +1,7 @@
 # OT-Rainbow
 project_name: 'atari_pretrain'
 entity: 'draftrec'
+group_name: 'test'
 exp_name: 'byol_nature'
 device: cuda:0
 seed: 0

@@ -100,7 +100,7 @@ class BYOLTrainer(BaseTrainer):
         self.model.train()
         self.target_model.train()
         loss, t = 0, 0
-        for e in range(1, self.update_epochs+1):
+        for u_e in range(1, self.update_epochs+1):
             for batch in tqdm.tqdm(self.dataloader):
                 log_data = {}
                 
@@ -135,8 +135,9 @@ class BYOLTrainer(BaseTrainer):
                 # proceed
                 t += 1
             
-            if e % self.cfg.save_every == 0:
-                self.logger.save_state_dict(model=self.model, epoch=e)
+            n_epoch = u_e * self.cfg.time_span
+            if n_epoch % self.cfg.save_every == 0:
+                self.logger.save_state_dict(model=self.model, epoch=n_epoch)
 
             self.lr_scheduler.step()
 

@@ -63,26 +63,6 @@ class SimCLRTrainer(BaseTrainer):
         loss = loss_fn(z, done)
         return loss
     
-    def _compute_loss(self, obs, done):
-        # obs
-        N, T, S, C, H, W = obs.shape
-        obs = obs.reshape(N*T, S*C, H, W) 
-        obs = obs.float() / 255.0
-        obs1, obs2 = self.aug_func(obs), self.aug_func(obs)
-        obs = torch.cat([obs1, obs2], axis=0)
-
-        # encoder
-        y = self.model.backbone(obs)
-        z = self.model.head.project(y)
-
-        # loss
-        loss_fn = TemporalContrastiveLoss(num_trajectory=N,
-                                          time_span=T,  
-                                          temperature=self.cfg.temperature, 
-                                          device=self.device)
-        loss = loss_fn(z, done)
-        return loss
-    
     def _compute_similarity(self, obs, done):
         # obs
         N, T, S, C, H, W = obs.shape
@@ -105,17 +85,17 @@ class SimCLRTrainer(BaseTrainer):
     def train(self):
         self.model.train()
         loss, t = 0, 0
-        for e in range(1, self.update_epochs+1):
+        for u_e in range(1, self.update_epochs+1):
             for batch in tqdm.tqdm(self.dataloader):
                 log_data = {}
                 
                 # forward
                 obs = batch.observation.to(self.device)
                 done = batch.done.to(self.device)
-                loss = self._compute_loss(obs, done)
+                loss += self._compute_loss(obs, done)
                 
                 # backward
-                if t % self.cfg.update_freq == 0:
+                if (t % self.cfg.update_freq == 0) and (t>0):
                     loss /= self.cfg.update_freq
                     self.optimizer.zero_grad()
                     loss.backward()
@@ -139,8 +119,9 @@ class SimCLRTrainer(BaseTrainer):
                 # proceed
                 t += 1
             
-            if e % self.cfg.save_every == 0:
-                self.logger.save_state_dict(model=self.model, epoch=e)
+            n_epoch = u_e * self.cfg.time_span
+            if n_epoch % self.cfg.save_every == 0:
+                self.logger.save_state_dict(model=self.model, epoch=n_epoch)
 
             self.lr_scheduler.step()
 

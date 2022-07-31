@@ -4,9 +4,9 @@ import torch.nn.functional as F
 
 INF = 1e9
 
+# Temporal extension of SimCLR loss
+# Identical to the SimCLR loss if T=1
 class TemporalContrastiveLoss(nn.Module):
-    # Temporal extension of SimCLR loss
-    # Identical to the SimCLR loss if T=1
 
     def __init__(self, num_trajectory, time_span, temperature, device):
         super().__init__()
@@ -58,6 +58,53 @@ class TemporalContrastiveLoss(nn.Module):
         
         return loss
 
+# Temporal extension of CURL loss
+# Identical to the CURL loss if T=1
+class TemporalCURLLoss(nn.Module):
+    def __init__(self, num_trajectory, time_span, temperature, device):
+        super().__init__()
+        self.num_trajectory = num_trajectory
+        self.time_span = time_span
+        self.temperature = temperature
+        self.device = device
+
+    def forward(self, p, z, done):
+        # [params] p, z (N*T, D)
+        # [params] done: (N, T)
+        N, T = self.num_trajectory, self.time_span
+        
+        # masking
+        # temporal_mask: select log probability within the temporal window
+        temporal_mask = torch.block_diag(*torch.ones(N, T, T, device=self.device))
+        # done_mask: do not select the logits after done (different trajectory)
+        done = done.float()
+        done_idx = torch.nonzero(done==1)
+        for idx in done_idx:
+            row = idx[0]
+            col = idx[1]
+            done[row, col] = 0
+            done[row, col+1:] = 1
+        done_mask = 1 - done.flatten().float()
+        done_mask = torch.mm(done_mask.unsqueeze(1), done_mask.unsqueeze(0))
+        done_mask = done_mask * torch.block_diag(*torch.ones(N,T,T, device=self.device))
+        positive_mask = (1-done_mask) * (1-temporal_mask)
+        
+        # Get log_probs within temporal window
+        # cosine_sim: identical to matmul in l2-normalized space
+        _logits = F.cosine_similarity(p.unsqueeze(1), z.unsqueeze(0), dim=-1)
+        logits = _logits / self.temperature
+        exp_logits = torch.exp(logits)
+        log_probs = logits - torch.log(torch.sum(exp_logits, 1, keepdim=True))
+        # compute mean of log-likelihood over temporal window
+        # supclr_out: https://arxiv.org/pdf/2004.11362.pdf
+        log_probs = (1-positive_mask) * log_probs
+        mean_log_prob = torch.sum(log_probs, 1) / torch.sum((1-positive_mask),1)
+        
+        # compute loss
+        loss = -torch.mean(mean_log_prob)
+        
+        return loss
+
 
 class TemporalConsistencyLoss(nn.Module):
     # Temporal extension of BYOL loss
@@ -75,14 +122,8 @@ class TemporalConsistencyLoss(nn.Module):
         # [params] done: (N, T)
         N, T = self.num_trajectory, self.time_span
 
-        # p: (N*T,D)->(N,T,D)
-        # z: (N*T,D)->(N,T,D)->(N,D,T)
+        # logits: (N, T, T)
         logits = F.cosine_similarity(p.unsqueeze(1), z.unsqueeze(0), dim=-1)
-        #p = F.normalize(p, dim=-1)
-        #z = F.normalize(z, dim=-1)
-        #p = p.view(N, T, -1)
-        #z = z.view(N, T, -1).permute(0,2,1)
-        #logits = torch.matmul(p, z)
         
         # temporal_mask: select log probability within the temporal window
         temporal_mask = torch.block_diag(*torch.ones(N, T, T, device=self.device))

@@ -2,7 +2,8 @@
 backbone:
     type: 'impala'
     obs_shape: None # not pre-defined
-    renormalize: False
+    expansion_ratio: 2
+    renormalize: True
     init_type: None
 head:
     type: None
