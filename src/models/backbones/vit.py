@@ -82,7 +82,7 @@ class VIT(BaseBackbone):
                  obs_shape,
                  action_size,
                  patch_size,
-                 time_span,
+                 t_step,
                  pool,
                  enc_depth,
                  enc_dim, 
@@ -106,52 +106,57 @@ class VIT(BaseBackbone):
         patch_dim = image_channel * patch_height * patch_width
 
         assert pool in {'mean'}, 'currently, pool must be mean (mean pooling)'
-        
+
+        ###########################################
         # Encoder 
         self.patch_embedding = nn.Sequential(
             Rearrange('n t c (h p1) (w p2) -> n (t h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
             nn.Linear(patch_dim, enc_dim),
         )
 
-        import pdb
-        pdb.set_trace()
-
         self.enc_spatial_embedding = nn.Parameter(torch.randn(1, num_patches + 1, enc_dim)) # +1 for action
-        self.enc_temporal_embedding = nn.Parameter(torch.randn(1, time_span, enc_dim))
+        self.enc_temporal_embedding = nn.Parameter(torch.randn(1, t_step, enc_dim))
         self.dropout = nn.Dropout(emb_dropout)
 
         self.encoder = Transformer(dim=enc_dim, 
                                    depth=enc_depth, 
-                                   heads=enc_head, 
+                                   heads=enc_heads, 
                                    mlp_dim=enc_mlp_dim, 
                                    dropout=dropout)
 
+        ########################################
         # Decoder
         self.decoder_embedding = nn.Linear(enc_dim, dec_dim)
         self.act_embedding = nn.Linear(action_size, dec_dim)
 
         self.dec_spatial_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dec_dim)) # +1 for action
-        self.dec_temporal_embedding = nn.Parameter(torch.randn(1, time_span, dec_dim))
+        self.dec_temporal_embedding = nn.Parameter(torch.randn(1, t_step, dec_dim))
 
         self.decoder = Transformer(dim=dec_dim, 
                                    depth=dec_depth, 
-                                   heads=dec_head, 
+                                   heads=dec_heads, 
                                    mlp_dim=dec_mlp_dim, 
                                    dropout=dropout)
 
         self._output_dim = dec_dim
 
-    def forward(self, img, act, done, img_mask):
+    def forward(self, x):
         """
         img: (N, T, C, H, W)
-        act: (B,) 
-        done: (B, )
-        img_mask: (B, )
+        act: (N, T) 
+        done: (N, T)
+        img_mask: (N, T)
         """
+        img = x['img']
+        act = x['act']
+        done = x['done']
+        img_mask = x['img_mask']
+
+
         import pdb
         pdb.set_trace()
         
-        x = self.to_patch_embedding(img)
+        x = self.patch_embedding(img)
         # act = self.to_act_embedding(act)
         # x += positional_embedding : spaital + temporal embedding
         # x = self.dropout(x)

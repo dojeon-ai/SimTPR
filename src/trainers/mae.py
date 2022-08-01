@@ -1,6 +1,5 @@
 from .base import BaseTrainer
 from src.common.train_utils import LinearScheduler
-from src.common.losses import TemporalContrastiveLoss, TemporalSimilarityLoss
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -29,8 +28,7 @@ class MAETrainer(BaseTrainer):
         self.aug_func = aug_func.to(self.device)
         self.model = model.to(self.device)
         self.optimizer = self._build_optimizer(cfg.optimizer)
-        self.update_epochs = cfg.num_epochs // cfg.time_span
-        self.lr_scheduler = self._build_scheduler(self.optimizer, self.update_epochs)
+        self.lr_scheduler = self._build_scheduler(self.optimizer, cfg.num_epochs)
 
     def _build_optimizer(self, optimizer_cfg):
         optimizer_type = optimizer_cfg.pop('type')
@@ -48,15 +46,22 @@ class MAETrainer(BaseTrainer):
         N, T, S, C, H, W = obs.shape
         obs = obs.reshape(N*T, S*C, H, W) 
         obs = obs.float() / 255.0
-        aug_obs = self.aug_func(obs)
-        obs_pred = self.model(aug_obs, act, done)        
+        aug_obs = self.aug_func(obs).reshape(N, T, S*C, H, W)
+
+        _input = {
+            'img': aug_obs,
+            'act': act,
+            'done': done,
+            'img_mask': done
+        }
+        obs_pred = self.model(_input)        
         
         pass
 
     def train(self):
         self.model.train()
         loss, t = 0, 0
-        for u_e in range(1, self.update_epochs+1):
+        for e in range(1, self.cfg.num_epochs+1):
             for batch in tqdm.tqdm(self.dataloader):
                 log_data = {}
                 
@@ -87,9 +92,8 @@ class MAETrainer(BaseTrainer):
                 # proceed
                 t += 1
             
-            n_epoch = u_e * self.cfg.time_span
-            if n_epoch % self.cfg.save_every == 0:
-                self.logger.save_state_dict(model=self.model, epoch=n_epoch)
+            if e % self.cfg.save_every == 0:
+                self.logger.save_state_dict(model=self.model, epoch=e)
 
             self.lr_scheduler.step()
 
