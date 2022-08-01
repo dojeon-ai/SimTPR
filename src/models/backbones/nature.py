@@ -8,6 +8,7 @@ class Nature(BaseBackbone):
     name = 'nature'
     def __init__(self,
                  obs_shape,
+                 action_size,
                  renormalize,
                  init_type):
         super().__init__()

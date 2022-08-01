@@ -37,7 +37,7 @@ def run(args):
     # shape config
     env, _ = build_env(cfg.env)
     cfg.trainer.obs_shape = cfg.model.backbone.obs_shape = env.observation_space.shape
-    cfg.trainer.action_size = env.action_space.n
+    cfg.trainer.action_size = cfg.model.backbone.action_size = env.action_space.n
     del env
     
     # logger

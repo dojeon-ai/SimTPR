@@ -1,0 +1,19 @@
+# OT-Rainbow
+project_name: 'atari_pretrain'
+entity: 'draftrec'
+group_name: 'test'
+exp_name: 'mae_vit-s'
+device: cuda:0
+seed: 0
+
+# pretrained-backbone
+use_artifact: False
+artifact_name: ''
+model_path: ''
+
+defaults:
+- _self_
+- dataloader: mixed
+- env: atari
+- trainer: mae
+- model: vit-s

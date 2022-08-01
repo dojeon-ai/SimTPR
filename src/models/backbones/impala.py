@@ -57,6 +57,7 @@ class Impala(BaseBackbone):
     name = 'impala'
     def __init__(self,
                  obs_shape,
+                 action_size,
                  expansion_ratio,
                  renormalize,
                  init_type):
