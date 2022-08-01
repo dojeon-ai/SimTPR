@@ -14,15 +14,14 @@ import numpy as np
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(allow_abbrev=False)
     parser.add_argument('--group_name',type=str,   default='test')
-    parser.add_argument('--exp_name',     type=str,    default='byol')
+    parser.add_argument('--exp_name',     type=str,    default='test')
     parser.add_argument('--mode',         type=str,    choices=['test','full'])
     parser.add_argument('--config_dir',   type=str,    default='atari/pretrain')
-    parser.add_argument('--config_name',  type=str,    default='mixed_byol_impala') 
+    parser.add_argument('--config_name',  type=str,    default='mixed_curl_impala') 
     parser.add_argument('--num_seeds',     type=int,   default=1)
     parser.add_argument('--num_devices',   type=int,   default=4)
-    parser.add_argument('--num_exp_per_device',  type=int,  default=2)
+    parser.add_argument('--num_exp_per_device',  type=int,  default=1)
     parser.add_argument('--overrides',    action='append',  default=[]) 
-    #'agent.num_timesteps=2500', 'agent.eval_every=2500']) 
     
     args = vars(parser.parse_args())
     seeds = np.arange(args.pop('num_seeds'))
@@ -65,9 +64,18 @@ if __name__ == '__main__':
     # maxtasksperchild=None -> no.of workers = pool size
     # https://docs.python.org/3.5/library/multiprocessing.html#contexts-and-start-methods
     # mp.set_start_method('spawn') 
-    pool = Pool(pool_size, maxtasksperchild=1)
-    results = pool.map(run, experiments, chunksize=1)
-    pool.close()
+    def chunks(lst, n):
+        """Yield successive n-sized chunks from lst."""
+        for i in range(0, len(lst), n):
+            yield lst[i:i + n]
+    
+    results = []
+    for exps in list(chunks(experiments, pool_size)):
+        pool = Pool(pool_size, maxtasksperchild=1)
+        results_per_pool = pool.map(run, exps, chunksize=1)
+        pool.close()
+        pool.join()
+        results += results_per_pool
 
     # artifacts from each logger
     artifacts_dict = {}
