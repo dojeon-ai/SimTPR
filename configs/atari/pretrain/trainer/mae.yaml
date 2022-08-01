@@ -1,7 +1,8 @@
 # defaults
 type: 'mae'
 num_epochs: 10
-time_span: None
+t_step: None
+
 obs_shape: None
 action_size: None
 aug_types: [random_shift, intensity]

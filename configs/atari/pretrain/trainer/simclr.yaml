@@ -1,7 +1,7 @@
 # defaults
 type: 'simclr'
-num_epochs: 32
-time_span: None
+num_epochs: 10
+t_step: None
 
 obs_shape: None
 action_size: None
@@ -15,10 +15,8 @@ optimizer:
     eps: 0.00015
 
 # updates
-batch_size: None
-update_freq: None
-base_batch_size: 32
-base_update_freq: 16
+batch_size: 256
+update_freq: 2
 temperature: 0.1
 
 # logging

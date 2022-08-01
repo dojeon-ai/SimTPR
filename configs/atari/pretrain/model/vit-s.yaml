@@ -4,12 +4,12 @@ backbone:
     obs_shape: None
     action_size: None
     patch_size: [14, 14]
-    time_span: None
+    t_step: None
     pool: 'mean'
     enc_depth: 4
-    enc_dim: 256
-    enc_mlp_dim: 1024
-    enc_heads: 4
+    enc_dim: 128
+    enc_mlp_dim: 512
+    enc_heads: 2
     dec_depth: 2 
     dec_dim: 128
     dec_mlp_dim: 512

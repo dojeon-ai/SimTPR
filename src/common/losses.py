@@ -7,17 +7,17 @@ INF = 1e9
 class TemporalContrastiveLoss(nn.Module):
     # Temporal extension of SimCLR loss
     # Identical to the SimCLR loss if T=1
-    def __init__(self, num_trajectory, time_span, temperature, device):
+    def __init__(self, num_trajectory, t_step, temperature, device):
         super().__init__()
         self.num_trajectory = num_trajectory
-        self.time_span = time_span
+        self.t_step = t_step
         self.temperature = temperature
         self.device = device
 
     def forward(self, z, done):
         # [params] z: (2*N*T, D)
         # [params] done: (N, T)
-        N, T = self.num_trajectory, self.time_span
+        N, T = self.num_trajectory, self.t_step
         
         # masking
         # logits_mask: exclude main diagonal in softmax
@@ -60,17 +60,17 @@ class TemporalContrastiveLoss(nn.Module):
 class TemporalCURLLoss(nn.Module):
     # Temporal extension of CURL loss
     # Identical to the CURL loss if T=1
-    def __init__(self, num_trajectory, time_span, temperature, device):
+    def __init__(self, num_trajectory, t_step, temperature, device):
         super().__init__()
         self.num_trajectory = num_trajectory
-        self.time_span = time_span
+        self.t_step = t_step
         self.temperature = temperature
         self.device = device
 
     def forward(self, p, z, done):
         # [params] p, z (N*T, D)
         # [params] done: (N, T)
-        N, T = self.num_trajectory, self.time_span
+        N, T = self.num_trajectory, self.t_step
         
         # masking
         # temporal_mask: select log probability within the temporal window
@@ -108,17 +108,17 @@ class TemporalCURLLoss(nn.Module):
 class TemporalConsistencyLoss(nn.Module):
     # Temporal extension of BYOL loss
     # Identical to the BYOL loss if T=1
-    def __init__(self, num_trajectory, time_span, device):
+    def __init__(self, num_trajectory, t_step, device):
         super().__init__()
         self.num_trajectory = num_trajectory
-        self.time_span = time_span
+        self.t_step = t_step
         self.device = device
         
     def forward(self, p, z, done):
         # T: trajectory_size, N: batch_size, D: representation_dim
         # [params] p, z: (N*T, D)
         # [params] done: (N, T)
-        N, T = self.num_trajectory, self.time_span
+        N, T = self.num_trajectory, self.t_step
 
         # logits: (N, T, T)
         logits = F.cosine_similarity(p.unsqueeze(1), z.unsqueeze(0), dim=-1)
@@ -147,16 +147,16 @@ class TemporalConsistencyLoss(nn.Module):
     
     
 class TemporalSimilarityLoss(nn.Module):
-    def __init__(self, num_trajectory, time_span, device):
+    def __init__(self, num_trajectory, t_step, device):
         super().__init__()
         self.num_trajectory = num_trajectory
-        self.time_span = time_span
+        self.t_step = t_step
         self.device = device
         
     def forward(self, z, done):
         # [params] z: (2*N*T, D)
         # [params] done: (N, T)
-        N, T = self.num_trajectory, self.time_span
+        N, T = self.num_trajectory, self.t_step
         
         # masking
         # logits_mask: exclude main diagonal in softmax
@@ -219,7 +219,7 @@ if __name__ == '__main__':
     print('[1. TEST Temporal Contrastive Loss]')
     print('[1.1 TEST loss without done]')
     loss_fn = TemporalContrastiveLoss(num_trajectory=N, 
-                                      time_span=T, 
+                                      t_step=T, 
                                       temperature=1.0, 
                                       device=device)
     done = torch.zeros((2,3)).to(device)
@@ -227,7 +227,7 @@ if __name__ == '__main__':
     
     print('[2. TEST Temporal Consistency Loss]')
     loss_fn = TemporalConsistencyLoss(num_trajectory=N, 
-                                      time_span=T, 
+                                      t_step=T, 
                                       device=device)
     done = torch.zeros((2,3)).to(device)
     loss = loss_fn(z1, z2, done)

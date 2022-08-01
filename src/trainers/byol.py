@@ -29,10 +29,8 @@ class BYOLTrainer(BaseTrainer):
         self.aug_func = aug_func.to(self.device)
         self.model = model.to(self.device)
         self.target_model = copy.deepcopy(self.model).to(self.device)        
-        self.optimizer = self._build_optimizer(cfg.optimizer)
-        
-        self.update_epochs = cfg.num_epochs // cfg.time_span
-        self.lr_scheduler = self._build_scheduler(self.optimizer, self.update_epochs)
+        self.optimizer = self._build_optimizer(cfg.optimizer)        
+        self.lr_scheduler = self._build_scheduler(self.optimizer, cfg.num_epochs)
 
     def _build_optimizer(self, optimizer_cfg):
         optimizer_type = optimizer_cfg.pop('type')
@@ -71,7 +69,7 @@ class BYOLTrainer(BaseTrainer):
 
         # loss
         loss_fn = TemporalConsistencyLoss(num_trajectory=N, 
-                                          time_span=T, 
+                                          t_step=T, 
                                           device=self.device)
         loss = 0.5 * (loss_fn(p1_o, z2_t, done) + loss_fn(p2_o, z1_t, done))
         
@@ -91,7 +89,7 @@ class BYOLTrainer(BaseTrainer):
 
         # loss
         sim_fn = TemporalSimilarityLoss(num_trajectory=N,
-                                        time_span=T,  
+                                        t_step=T,  
                                         device=self.device)
         positive_sim, negative_sim = sim_fn(z, done)
         return positive_sim, negative_sim
@@ -100,7 +98,7 @@ class BYOLTrainer(BaseTrainer):
         self.model.train()
         self.target_model.train()
         loss, t = 0, 0
-        for u_e in range(1, self.update_epochs+1):
+        for e in range(1, self.cfg.num_epochs+1):
             for batch in tqdm.tqdm(self.dataloader):
                 log_data = {}
                 
@@ -135,9 +133,8 @@ class BYOLTrainer(BaseTrainer):
                 # proceed
                 t += 1
             
-            n_epoch = u_e * self.cfg.time_span
-            if n_epoch % self.cfg.save_every == 0:
-                self.logger.save_state_dict(model=self.model, epoch=n_epoch)
+            if e % self.cfg.save_every == 0:
+                self.logger.save_state_dict(model=self.model, epoch=e)
 
             self.lr_scheduler.step()
 

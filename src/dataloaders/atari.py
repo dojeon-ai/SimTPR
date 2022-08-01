@@ -180,8 +180,6 @@ class ATARILoader(BaseLoader):
         self.group_read_factor = group_read_factor
         self.shuffle_checkpoints = shuffle_checkpoints
 
-        self.trajectory_size = self.batch_size // self.t_step
-
     def get_dataloader(self):
         def collate(batch):
             frames = self.frames
@@ -231,7 +229,7 @@ class ATARILoader(BaseLoader):
         if self.group_read_factor != 0:
             sampler = CacheEfficientSampler(dataset.num_blocks, dataset.block_len, self.group_read_factor)
             dataloader = DataLoader(dataset, 
-                                    batch_size=self.trajectory_size,
+                                    batch_size=self.batch_size,
                                     sampler=sampler,
                                     num_workers=self.num_workers,
                                     pin_memory=self.pin_memory,
@@ -240,7 +238,7 @@ class ATARILoader(BaseLoader):
                                     prefetch_factor=self.prefetch_factor)
         else:
             dataloader = DataLoader(dataset, 
-                                    batch_size=self.trajectory_size,
+                                    batch_size=self.batch_size,
                                     shuffle=True,
                                     num_workers=self.num_workers,
                                     pin_memory=self.pin_memory,

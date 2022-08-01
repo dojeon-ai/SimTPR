@@ -13,7 +13,7 @@ model_path: ''
 
 defaults:
 - _self_
-- dataloader: mixed
+- dataloader: mixed_bn256_t1
 - env: atari
 - trainer: simclr
 - model: impala_simclr

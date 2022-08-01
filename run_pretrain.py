@@ -33,6 +33,10 @@ def run(args):
     torch.set_num_threads(1)#<- when dataset on disk
     cfg.dataloader.device = cfg.device
     dataloader = build_dataloader(cfg.dataloader)
+    if 't_step' in cfg.model.backbone:
+        cfg.trainer.t_step = cfg.model.backbone.t_step = cfg.dataloader.t_step
+    else:
+        cfg.trainer.t_step = cfg.dataloader.t_step
 
     # shape config
     env, _ = build_env(cfg.env)
@@ -46,13 +50,7 @@ def run(args):
     # model
     model = build_model(cfg.model)
 
-    # agent
-    cfg.trainer.time_span = cfg.dataloader.t_step
-    cfg.trainer.batch_size = cfg.dataloader.batch_size
-    N = cfg.trainer.batch_size // cfg.trainer.base_batch_size
-    cfg.trainer.update_freq = cfg.trainer.base_update_freq // N
-    cfg.trainer.optimizer.lr = cfg.trainer.optimizer.lr * N
-    
+    # agent    
     trainer = build_trainer(cfg=cfg.trainer,
                             dataloader=dataloader,
                             device=device,

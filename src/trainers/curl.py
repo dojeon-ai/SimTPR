@@ -30,9 +30,7 @@ class CURLTrainer(BaseTrainer):
         self.model = model.to(self.device)
         self.target_model = copy.deepcopy(self.model).to(self.device)   
         self.optimizer = self._build_optimizer(cfg.optimizer)
-        
-        self.update_epochs = cfg.num_epochs // cfg.time_span
-        self.lr_scheduler = self._build_scheduler(self.optimizer, self.update_epochs)
+        self.lr_scheduler = self._build_scheduler(self.optimizer, cfg.num_epochs)
 
     def _build_optimizer(self, optimizer_cfg):
         optimizer_type = optimizer_cfg.pop('type')
@@ -71,7 +69,7 @@ class CURLTrainer(BaseTrainer):
 
         # loss
         loss_fn = TemporalCURLLoss(num_trajectory=N,
-                                   time_span=T,  
+                                   t_step=T,  
                                    temperature=self.cfg.temperature, 
                                    device=self.device)
         loss = 0.5 * (loss_fn(p1_o, z2_t, done) + loss_fn(p2_o, z1_t, done))
@@ -92,7 +90,7 @@ class CURLTrainer(BaseTrainer):
 
         # loss
         sim_fn = TemporalSimilarityLoss(num_trajectory=N,
-                                        time_span=T,  
+                                        t_step=T,  
                                         device=self.device)
         positive_sim, negative_sim = sim_fn(z, done)
         return positive_sim, negative_sim
@@ -100,7 +98,7 @@ class CURLTrainer(BaseTrainer):
     def train(self):
         self.model.train()
         loss, t = 0, 0
-        for u_e in range(1, self.update_epochs+1):
+        for e in range(1, self.cfg.num_epochs+1):
             for batch in tqdm.tqdm(self.dataloader):
                 log_data = {}
                 
@@ -135,9 +133,9 @@ class CURLTrainer(BaseTrainer):
                 # proceed
                 t += 1
             
-            n_epoch = u_e * self.cfg.time_span
-            if n_epoch % self.cfg.save_every == 0:
-                self.logger.save_state_dict(model=self.model, epoch=n_epoch)
+                break
+            if e % self.cfg.save_every == 0:
+                self.logger.save_state_dict(model=self.model, epoch=e)
 
             self.lr_scheduler.step()
 
