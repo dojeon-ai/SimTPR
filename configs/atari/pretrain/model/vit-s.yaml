@@ -16,7 +16,6 @@ backbone:
     dec_heads: 2 
     emb_dropout: 0.1
     dropout: 0.1 
-    init_type: None
 head:
     type: None
 policy:

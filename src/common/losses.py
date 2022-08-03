@@ -191,7 +191,6 @@ class TemporalSimilarityLoss(nn.Module):
         return positive_sim, negative_sim
 
 
-
 if __name__ == '__main__':
     print('[TEST Loss Functions]')
     N, T, D = 2, 3, 2
@@ -231,5 +230,3 @@ if __name__ == '__main__':
                                       device=device)
     done = torch.zeros((2,3)).to(device)
     loss = loss_fn(z1, z2, done)
-    import pdb
-    pdb.set_trace()

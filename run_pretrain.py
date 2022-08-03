@@ -50,7 +50,7 @@ def run(args):
 
     # model
     model = build_model(cfg.model)
-
+    
     # agent    
     trainer = build_trainer(cfg=cfg.trainer,
                             dataloader=dataloader,
