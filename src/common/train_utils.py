@@ -25,7 +25,7 @@ def xavier_uniform_init(module, gain=1.0):
 # Transformer: https://github.com/tensorflow/models/blob/master/official/nlp/transformer/model_utils.py
 # MoCo v3: https://github.com/facebookresearch/moco-v3
 # --------------------------------------------------------
-def get_2d_sincos_pos_embed(embed_dim, grid_size, act_token=False):
+def get_2d_sincos_pos_embed(embed_dim, grid_size):
     """
     [param] embed_dim: dimension of the model
     [param] grid_size: int of the grid height and width
@@ -38,8 +38,7 @@ def get_2d_sincos_pos_embed(embed_dim, grid_size, act_token=False):
 
     grid = grid.reshape([2, 1, grid_size, grid_size])
     pos_embed = get_2d_sincos_pos_embed_from_grid(embed_dim, grid)
-    if act_token:
-        pos_embed = np.concatenate([np.zeros([1, embed_dim]), pos_embed], axis=0)
+
     return pos_embed
 
 
@@ -80,6 +79,50 @@ def get_1d_sincos_pos_embed_from_grid(embed_dim, pos):
 # References:
 # MAE: https://github.com/facebookresearch/mae/blob/main/models_mae.py
 # --------------------------------------------------------
+def random_1d_masking(x, mask_ratio):
+    """
+    Perform per-sample random masking by per-sample shuffling.
+    Per-sample shuffling is done by argsort random noise.
+
+    [param] x: batch of sequential data with a shape (N, S, D).
+    [param] mask_ratio: portion of the mask.
+
+    [return] x_masked: un-masked vectors (N, S*mask_ratio, D).
+    [return] mask: boolean mask to indicate the masked patches (N, S) (later used for loss computation)
+    [return] ids_restore: x_mask can find its sequence via unshuffling with ids_restore. (used in decoder)
+    """
+    N, S, D = x.shape  # batch, sequence_length, dim
+    assert abs(S * (1-mask_ratio) - round(S * (1-mask_ratio))) < 1e-6, 'sequence length is not divisible to mask-ratio'
+    len_keep = round(S * (1 - mask_ratio))
+
+    # sample random noise
+    noise = torch.rand(N, L, device=x.device)  # noise in [0, 1]
+    # sort noise for each sample
+    ids_shuffle = torch.argsort(noise, dim=1)  # ascend: small is keep, large is remove
+    ids_restore = torch.argsort(ids_shuffle, dim=1)
+
+    # keep the first subset
+    ids_keep = ids_shuffle[:, :len_keep]
+
+    # randomly mask out 3d-voxels
+    x = rearrange(x, 'n t p d -> n (t p) d')
+    x_masked = torch.gather(x, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, D))
+
+    # generate the binary mask: 0 is keep, 1 is remove
+    mask = torch.ones([N, L], device=x.device)
+    mask[:, :len_keep] = 0
+
+    # unshuffle to get the binary mask
+    mask = torch.gather(mask, dim=1, index=ids_restore)
+
+    return x_masked, mask, ids_restore
+
+
+
+    return x_masked, mask, ids_restore
+
+
+
 def random_3d_masking(x, mask_ratio, mask_type):
     """
     Perform per-sample random masking by per-sample shuffling.
@@ -113,7 +156,7 @@ def random_3d_masking(x, mask_ratio, mask_type):
 def random_3d_agnostic_masking(x, mask_ratio):
     N, T, P, D = x.shape  # batch, time_step, spatial_size, dim
     L = T*P
-    assert (L * (1-mask_ratio) - round(L * (1-mask_ratio))) < 1e-6, 'sequence length is not divisible to mask-ratio'
+    assert abs(L * (1-mask_ratio) - round(L * (1-mask_ratio))) < 1e-6, 'sequence length is not divisible to mask-ratio'
     len_keep = round(L * (1 - mask_ratio))
 
     # sample random noise
@@ -141,7 +184,7 @@ def random_3d_agnostic_masking(x, mask_ratio):
 
 def random_3d_space_masking(x, mask_ratio):
     N, T, P, D = x.shape  # batch, time_step, spatial_size, dim
-    assert (P * (1-mask_ratio) - round(P * (1-mask_ratio))) < 1e-6, 'num-pathces are not divisible to mask-ratio'
+    assert abs(P * (1-mask_ratio) - round(P * (1-mask_ratio))) < 1e-6, 'num-pathces are not divisible to mask-ratio'
     len_keep = round(P * (1 - mask_ratio))
 
     # sample random noise
@@ -179,7 +222,7 @@ def random_3d_space_masking(x, mask_ratio):
 
 def random_3d_time_masking(x, mask_ratio):
     N, T, P, D = x.shape  # batch, time_step, spatial_size, dim
-    assert (T * (1-mask_ratio) - round(T * (1-mask_ratio))) < 1e-6, 'time-steps are not divisible to mask-ratio'
+    assert abs(T * (1-mask_ratio) - round(T * (1-mask_ratio))) < 1e-6, 'time-steps are not divisible to mask-ratio'
     len_keep = round(T * (1 - mask_ratio))
 
     # sample random noise

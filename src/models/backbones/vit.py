@@ -4,7 +4,7 @@ import numpy as np
 from .base import BaseBackbone
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
-from src.common.train_utils import get_1d_sincos_pos_embed_from_grid, get_2d_sincos_pos_embed
+from src.common.train_utils import get_1d_sincos_pos_embed_from_grid, get_2d_sincos_pos_embed, random_3d_masking
 
 
 class PreNorm(nn.Module):
@@ -77,7 +77,7 @@ class Transformer(nn.Module):
 
     def forward(self, x, attn_mask=None):
         for attn, ff in self.layers:
-            x = attn(x, attn_mask) + x
+            x = attn(x, attn_mask=attn_mask) + x
             x = ff(x) + x
         return x
 
@@ -89,6 +89,9 @@ class VIT(BaseBackbone):
                  action_size,
                  patch_size,
                  t_step,
+                 mask_type,
+                 patch_mask_ratio,
+                 act_mask_ratio,
                  pool,
                  enc_depth,
                  enc_dim, 
@@ -113,6 +116,10 @@ class VIT(BaseBackbone):
         self.t_step = t_step
         self.num_patches = num_patches
 
+        self.mask_type = mask_type
+        self.patch_mask_ratio = patch_mask_ratio
+        self.act_mask_ratio = act_mask_ratio
+
         assert pool in {'mean'}, 'currently, pool must be mean (mean pooling)'
 
         ###########################################
@@ -122,7 +129,7 @@ class VIT(BaseBackbone):
             nn.Linear(patch_dim, enc_dim),
         )
 
-        self.enc_spatial_embed = nn.Parameter(torch.randn(1, num_patches + 1, enc_dim), requires_grad=False) # +1 for action
+        self.enc_spatial_embed = nn.Parameter(torch.randn(1, num_patches, enc_dim), requires_grad=False)
         self.enc_temporal_embed = nn.Parameter(torch.randn(1, t_step, enc_dim), requires_grad=False)
         self.emb_dropout = nn.Dropout(emb_dropout)
 
@@ -139,7 +146,7 @@ class VIT(BaseBackbone):
         self.act_embed = nn.Linear(action_size, dec_dim)
         self.mask_token = nn.Parameter(torch.zeros(1, 1, dec_dim))
 
-        self.dec_spatial_embed = nn.Parameter(torch.randn(1, num_patches + 1, dec_dim), requires_grad=False) # +1 for action
+        self.dec_spatial_embed = nn.Parameter(torch.randn(1, num_patches, dec_dim), requires_grad=False) 
         self.dec_temporal_embed = nn.Parameter(torch.randn(1, t_step, dec_dim), requires_grad=False)
 
         self.decoder = Transformer(dim=dec_dim, 
@@ -156,13 +163,13 @@ class VIT(BaseBackbone):
         # initialization
         # initialize (and freeze) spatial pos_embed by 2d sin-cos embedding
         # initialize (and freeze) temporal pos_embed by 1d sin-cos embedding
-        enc_spatial_embed = get_2d_sincos_pos_embed(self.enc_spatial_embed.shape[-1], int((self.enc_spatial_embed.shape[1]-1)**.5), act_token=True)
+        enc_spatial_embed = get_2d_sincos_pos_embed(self.enc_spatial_embed.shape[-1], int((self.enc_spatial_embed.shape[1])**.5))
         self.enc_spatial_embed.copy_(torch.from_numpy(enc_spatial_embed).float().unsqueeze(0))
 
         enc_temporal_embed = get_1d_sincos_pos_embed_from_grid(self.enc_temporal_embed.shape[-1], np.arange(int(self.enc_temporal_embed.shape[1])))
         self.enc_temporal_embed.copy_(torch.from_numpy(enc_temporal_embed).float().unsqueeze(0))
 
-        dec_spatial_embed = get_2d_sincos_pos_embed(self.dec_spatial_embed.shape[-1], int((self.dec_spatial_embed.shape[1]-1)**.5), act_token=True)
+        dec_spatial_embed = get_2d_sincos_pos_embed(self.dec_spatial_embed.shape[-1], int((self.dec_spatial_embed.shape[1])**.5))
         self.dec_spatial_embed.copy_(torch.from_numpy(dec_spatial_embed).float().unsqueeze(0))
 
         dec_temporal_embed = get_1d_sincos_pos_embed_from_grid(self.dec_temporal_embed.shape[-1], np.arange(int(self.dec_temporal_embed.shape[1])))
@@ -195,29 +202,57 @@ class VIT(BaseBackbone):
         act = x['act']
         done = x['done']
         img_mask = x['img_mask']
+
+        ##############################################
+        # Encoder
         
         # N, L=T*P, D (T: t_step P: num_patches)
         x = self.patch_embed(img)
 
         # add pos embed w/o act token
         # pos_embed = spatial_embed + temporal_embed
-        enc_spatial_embed = self.enc_spatial_embed[:,1:,:].repeat(1, self.t_step, 1)
+        enc_spatial_embed = self.enc_spatial_embed.repeat(1, self.t_step, 1)
         enc_temporal_embed = torch.repeat_interleave(self.enc_temporal_embed, repeats=self.num_patches, dim=1)
         enc_pos_embed = enc_spatial_embed + enc_temporal_embed
-        x = x + self.enc_pos_embed
+        x = x + enc_pos_embed
 
         # masking: length -> length * mask_ratio
         x = rearrange(x, 'n (t p) d -> n t p d', t = self.t_step, p = self.num_patches)
 
+        # TODO: masking 위치가 forward문 안에서 이루어지면 안됨. trainer에서 진행될 수 있도록 하거나, 
+        # forward문에 argument를 추가해서 masking이 optional하게 진행되도록 처리
+        x, patch_mask, ids_restore = random_3d_masking(x, self.patch_mask_ratio, self.mask_type)
+
+        # apply Transformer blocks
+        x = self.emb_dropout(x)
+        x = self.encoder(x)
+        x = self.enc_norm(x)
+
+        ##############################################
+        # Decoder
+
+        # embed patches
+        self.decoder_embed(x)
+
+        # TODO: done 관련 처리 -> input에서 이미 처리가 되어야 함.
+
+        # embed actions
+        # act-mask
+        # reconstruct masking
+
+        # positional embedding
+
+        # concat patches with actions
+
+        # casual attention mask
+
+        # decoder
+
+        # state & action predictor?
+
         import pdb
         pdb.set_trace()
 
-
-        # x = self.dropout(x)
-
-        # Transformer Encoder
-        # enc_x = torch.select_index(img, img_mask)
-        # enc_x = self.encoder(enc_x)
         
         # Transformer Decoder
         # act = self.to_act_embedding(act)
