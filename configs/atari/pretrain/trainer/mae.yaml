@@ -1,11 +1,17 @@
 # defaults
 type: 'mae'
-num_epochs: 10
-t_step: None
 
 obs_shape: None
 action_size: None
-aug_types: [random_shift, intensity]
+t_step: None
+num_patches: None
+
+aug_types: []
+
+# masking
+patch_mask_type: 'agnostic'
+patch_mask_ratio: 0.8
+act_mask_ratio: 0.6
 
 optimizer:
     type: 'adam'
@@ -15,7 +21,8 @@ optimizer:
     eps: 0.00015
 
 # updates
-batch_size: 32
+num_epochs: 10
+batch_size: 64
 
 # logging
 log_every: 1000

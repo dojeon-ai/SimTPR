@@ -30,7 +30,7 @@ def run(args):
     # environment
     train_env, eval_env = build_env(cfg.env)
     cfg.agent.obs_shape = cfg.model.backbone.obs_shape = train_env.observation_space.shape
-    cfg.agent.action_size = cfg.model.policy.action_size = train_env.action_space.n
+    cfg.agent.action_size = cfg.model.backbone.action_size = cfg.model.policy.action_size = train_env.action_space.n
     
     # logger
     logger= WandbAgentLogger(cfg)

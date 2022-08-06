@@ -5,9 +5,6 @@ backbone:
     action_size: None
     patch_size: [14, 14]
     t_step: None
-    mask_type: 'agnostic'
-    patch_mask_ratio: 0.8
-    act_mask_ratio: 0.6
     pool: 'mean'
     enc_depth: 4
     enc_dim: 128

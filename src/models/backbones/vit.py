@@ -4,7 +4,7 @@ import numpy as np
 from .base import BaseBackbone
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
-from src.common.train_utils import get_1d_sincos_pos_embed_from_grid, get_2d_sincos_pos_embed, random_3d_masking
+from src.common.train_utils import get_1d_sincos_pos_embed_from_grid, get_2d_sincos_pos_embed, get_1d_masked_input, get_3d_masked_input
 
 
 class PreNorm(nn.Module):
@@ -57,9 +57,12 @@ class Attention(nn.Module):
 
         attn = self.attend(dots)
         attn = self.dropout(attn)
-
+        
+        # attn_mask: (n, t, t)
+        if attn_mask:
+            attn = attn * (1-attn_mask).unsqueeze(1)
+        
         out = torch.matmul(attn, v)
-        # TODO: attn_mask->casual
         out = rearrange(out, 'n h t d -> n t (h d)')
         out = self.to_out(out)
         return out
@@ -89,9 +92,6 @@ class VIT(BaseBackbone):
                  action_size,
                  patch_size,
                  t_step,
-                 mask_type,
-                 patch_mask_ratio,
-                 act_mask_ratio,
                  pool,
                  enc_depth,
                  enc_dim, 
@@ -116,10 +116,6 @@ class VIT(BaseBackbone):
         self.t_step = t_step
         self.num_patches = num_patches
 
-        self.mask_type = mask_type
-        self.patch_mask_ratio = patch_mask_ratio
-        self.act_mask_ratio = act_mask_ratio
-
         assert pool in {'mean'}, 'currently, pool must be mean (mean pooling)'
 
         ###########################################
@@ -143,24 +139,27 @@ class VIT(BaseBackbone):
         ########################################
         # Decoder
         self.decoder_embed = nn.Linear(enc_dim, dec_dim)
-        self.act_embed = nn.Linear(action_size, dec_dim)
+        self.act_embed = nn.Embedding(action_size, dec_dim)
         self.mask_token = nn.Parameter(torch.zeros(1, 1, dec_dim))
 
         self.dec_spatial_embed = nn.Parameter(torch.randn(1, num_patches, dec_dim), requires_grad=False) 
         self.dec_temporal_embed = nn.Parameter(torch.randn(1, t_step, dec_dim), requires_grad=False)
-
+        self.dec_emb_dropout = nn.Dropout(emb_dropout)
+        
         self.decoder = Transformer(dim=dec_dim, 
                                    depth=dec_depth, 
                                    heads=dec_heads, 
                                    mlp_dim=dec_mlp_dim, 
                                    dropout=dropout)
         self.dec_norm = nn.LayerNorm(dec_dim)
-
+        
+        self.patch_pred = nn.Linear(dec_dim, patch_dim, bias=True)
+        self.act_pred = nn.Linear(dec_dim, action_size, bias=True)
+        
         self._output_dim = dec_dim
         self.initialize_weights()
 
     def initialize_weights(self):
-        # initialization
         # initialize (and freeze) spatial pos_embed by 2d sin-cos embedding
         # initialize (and freeze) temporal pos_embed by 1d sin-cos embedding
         enc_spatial_embed = get_2d_sincos_pos_embed(self.enc_spatial_embed.shape[-1], int((self.enc_spatial_embed.shape[1])**.5))
@@ -190,19 +189,63 @@ class VIT(BaseBackbone):
         elif isinstance(m, nn.LayerNorm):
             nn.init.constant_(m.bias, 0)
             nn.init.constant_(m.weight, 1.0)
+            
+    def get_decoder_attn_mask(self, done):
+        N, T = done.shape
+        
+        # get uni-directional attn_mask (1: mask-out, 0: leave)
+        L = self.t_step * (self.num_patches+1)
+        attn_mask = 1 - torch.ones((N, L, L), device=done.device).tril_()
+        
+        # find indexs where done is True
+        done = done.float()
+        done_mask = torch.zeros_like(done)
+        done_idx = torch.nonzero(done==1)
+        
+        # done-mask (1: mask_out, 0: leave).
+        # done is masked in reverse-order is required to keep consistency with evaluation stage.
+        for idx in done_idx:
+            row = idx[0]
+            col = idx[1]
+            done_mask[row, :col+1] = 1
+            
+        # repeat for patches & actions
+        done_mask = torch.repeat_interleave(done_mask, repeats=self.num_patches+1, dim=1)
+            
+        # expand to attn_mask
+        done_mask = 1 -(1-done_mask).unsqueeze(-1).matmul((1-done_mask).unsqueeze(1))
+        
+        # 0: attn_mask & done_mask are both 0
+        attn_mask = 1 - ((attn_mask == 0) * (done_mask == 0)).float()
+        
+        return attn_mask
+        
+        
 
-    def forward(self, x):
+    def forward(self, x, input_mask=None):
         """
-        img: (N, T, C, H, W)
-        act: (N, T) 
-        done: (N, T)
-        img_mask: (N, T)
+        [param] x: dict
+            img: (N, T, C, H, W)
+            act: (N, T) 
+            done: (N, T)
+            img_mask: (N, T)
+        [param] input_mask: dict
+            patch_mask_type
+            patch_ids_keep
+            patch_ids_restore
+            act_ids_keep
+            act_ids_restore
         """
         img = x['img']
         act = x['act']
         done = x['done']
-        img_mask = x['img_mask']
+        
+        N, T, C, H, W = img.shape
 
+        # TODO: model eval시에는 어떻게하면 masking되지 않고 진행?
+        # TODO: done 관련 처리 restore x
+        # TODO: attn_mask
+        
         ##############################################
         # Encoder
         
@@ -217,12 +260,10 @@ class VIT(BaseBackbone):
         x = x + enc_pos_embed
 
         # masking: length -> length * mask_ratio
-        x = rearrange(x, 'n (t p) d -> n t p d', t = self.t_step, p = self.num_patches)
-
-        # TODO: masking 위치가 forward문 안에서 이루어지면 안됨. trainer에서 진행될 수 있도록 하거나, 
-        # forward문에 argument를 추가해서 masking이 optional하게 진행되도록 처리
-        x, patch_mask, ids_restore = random_3d_masking(x, self.patch_mask_ratio, self.mask_type)
-
+        if input_mask:
+            x = rearrange(x, 'n (t p) d -> n t p d', t = self.t_step, p = self.num_patches)
+            x = get_3d_masked_input(x, input_mask['patch_ids_keep'], input_mask['patch_mask_type'])
+            
         # apply Transformer blocks
         x = self.emb_dropout(x)
         x = self.encoder(x)
@@ -230,38 +271,60 @@ class VIT(BaseBackbone):
 
         ##############################################
         # Decoder
-
+        
         # embed patches
         self.decoder_embed(x)
-
-        # TODO: done 관련 처리 -> input에서 이미 처리가 되어야 함.
-
+        
+        # restore patch-mask
+        if input_mask:
+            patch_mask_len = self.t_step * self.num_patches - x.shape[1]
+            mask_tokens = torch.zeros((N, patch_mask_len, x.shape[-1])).to(x.device)
+            x = torch.cat([x, mask_tokens], dim=1)
+            x = torch.gather(x, dim=1, index=input_mask['patch_ids_restore'].unsqueeze(-1).repeat(1,1,x.shape[-1]))
+        
+        # pos-embed to patches
+        dec_spatial_embed = self.dec_spatial_embed.repeat(1, self.t_step, 1)
+        dec_temporal_embed = torch.repeat_interleave(self.dec_temporal_embed, repeats=self.num_patches, dim=1)
+        dec_pos_embed = dec_spatial_embed + dec_temporal_embed
+        x = x + dec_pos_embed
+        
         # embed actions
-        # act-mask
-        # reconstruct masking
-
-        # positional embedding
-
+        x_act = self.act_embed(act)
+        
+        # mask & restore actions
+        if input_mask:
+            x_act = get_1d_masked_input(x_act, input_mask['act_ids_keep'])            
+            act_mask_len = self.t_step - x_act.shape[1]
+            act_mask_tokens = torch.zeros((N,act_mask_len,x_act.shape[-1])).to(x.device)
+            x_act = torch.cat([x_act, act_mask_tokens], dim=1)
+            x_act = torch.gather(x_act, dim=1, index=input_mask['act_ids_restore'].unsqueeze(-1).repeat(1,1,x_act.shape[-1]))
+        
+        
+        # pos-embed to actions
+        x_act = x_act + self.dec_temporal_embed
+        
         # concat patches with actions
+        x = rearrange(x, 'n (t p) d -> n t p d', t = self.t_step, p = self.num_patches)
+        x = torch.cat([x, x_act.unsqueeze(2)], dim=2)
+        x = rearrange(x, 'n t pa d -> n (t pa) d', t = self.t_step, pa = self.num_patches+1) # +1 for act
 
         # casual attention mask
+        attn_mask = self.get_decoder_attn_mask(done)
 
         # decoder
-
-        # state & action predictor?
-
-        import pdb
-        pdb.set_trace()
-
+        x = self.dec_emb_dropout(x)
+        x = self.decoder(x, attn_mask)
+        x = self.dec_norm(x)        
         
-        # Transformer Decoder
-        # act = self.to_act_embedding(act)
-        # x = mask * x + (1-mask) * enc_x
-        # x = cat(x, act)
-        # x += positional_embedding : decoder position
-        # casual attention mask
-        # attn_mask = (item_ids > 0).unsqueeze(1).repeat(1, item_ids.size(1), 1).unsqueeze(1)
-        # attn_mask.tril_()
-        # x = self.decoder(x)        
+        # extract patch & act
+        patch_ids = torch.arange(P*T, device=x.device).reshape(T, P) + torch.arange(T, device=x.device).reshape(-1,1)
+        x_patch = torch.gather(x, dim=1, index=patch_ids.reshape(1,-1,1).repeat(N,1,D))
         
-        return x
+        act_ids = (torch.arange(T, device=x.device)+1) * (P+1) - 1
+        x_act = torch.gather(x, dim=1, index=act_ids.reshape(1,-1,1).repeat(N,1,D))
+        
+        # prediction layer
+        patch_pred = self.patch_pred(x_patch)
+        act_pred = self.act_pred(x_act)
+
+        return patch_pred, act_pred, patch_mask, act_mask

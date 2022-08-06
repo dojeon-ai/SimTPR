@@ -195,7 +195,7 @@ class RAINBOW(BaseAgent):
 
             # evaluate & save model
             if t % self.cfg.eval_every == 0:
-                self.logger.save_state_dict(model=self.model)
+                #self.logger.save_state_dict(model=self.model)
                 self.evaluate()
 
             # move on

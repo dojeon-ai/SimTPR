@@ -2,6 +2,7 @@
 backbone:
     type: 'de_nature'
     obs_shape: None # not pre-defined
+    action_size: None
     renormalize: False
     init_type: None
 head:

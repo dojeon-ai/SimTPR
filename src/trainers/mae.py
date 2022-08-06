@@ -1,9 +1,12 @@
 from .base import BaseTrainer
 from src.common.train_utils import LinearScheduler
+from src.common.train_utils import get_random_1d_mask, get_random_3d_mask
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+from einops import rearrange, repeat
 import random
 import copy
 import tqdm
@@ -29,6 +32,8 @@ class MAETrainer(BaseTrainer):
         self.model = model.to(self.device)
         self.optimizer = self._build_optimizer(cfg.optimizer)
         self.lr_scheduler = self._build_scheduler(self.optimizer, cfg.num_epochs)
+        
+        self.cfg.num_patches = self.model.backbone.num_patches
 
     def _build_optimizer(self, optimizer_cfg):
         optimizer_type = optimizer_cfg.pop('type')
@@ -42,19 +47,41 @@ class MAETrainer(BaseTrainer):
         return optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_epochs)
 
     def _compute_loss(self, obs, act, done):
-        # obs
-        N, T, S, C, H, W = obs.shape
-        obs = obs.reshape(N*T, S*C, H, W) 
+        # reshape obs for augmentation
+        obs = rearrange(obs, 'n t s c h w -> (n t) (s c) h w')
         obs = obs.float() / 255.0
-        aug_obs = self.aug_func(obs).reshape(N, T, S*C, H, W)
+        
+        # perform augmentation if needed
+        aug_obs = self.aug_func(obs)
+        aug_obs = rearrange(aug_obs, '(n t) c h w -> n t c h w', n=self.cfg.batch_size, t=self.cfg.t_step) 
 
-        _input = {
+        # construct input data for vit
+        x = {
             'img': aug_obs,
             'act': act,
             'done': done,
-            'img_mask': done
         }
-        obs_pred = self.model(_input)        
+        
+        # construct mask data for vit-encoder
+        video_shape = (self.cfg.batch_size, self.cfg.t_step, self.cfg.num_patches) 
+        patch_ids_keep, patch_mask, patch_ids_restore = get_random_3d_mask(video_shape, self.cfg.patch_mask_ratio, self.cfg.patch_mask_type)
+        
+        act_shape = (self.cfg.batch_size, self.cfg.t_step) 
+        act_ids_keep, act_mask, act_ids_restore = get_random_1d_mask(act_shape, self.cfg.act_mask_ratio)
+        
+        mask = {
+            'patch_mask_type': self.cfg.patch_mask_type,
+            'patch_ids_keep': patch_ids_keep.to(self.device),
+            'patch_ids_restore': patch_ids_restore.to(self.device),
+            'act_ids_keep': act_ids_keep.to(self.device),
+            'act_ids_restore': act_ids_restore.to(self.device),
+        }
+        
+        # forward
+        
+        
+        
+        obs_pred = self.model.backbone(x, mask)        
         
         pass
 

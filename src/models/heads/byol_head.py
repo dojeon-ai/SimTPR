@@ -35,4 +35,4 @@ class BYOLHead(BaseHead):
     def forward(self, x):
         x = self.project(x)
         x = self.predict(x)
-        return x
+        return 

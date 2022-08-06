@@ -1,10 +1,10 @@
 # defaults
 type: 'byol'
-num_epochs: 10
-t_step: None
 
 obs_shape: None
 action_size: None
+t_step: None
+
 aug_types: [random_shift, intensity]
 
 optimizer:
@@ -15,6 +15,7 @@ optimizer:
     eps: 0.00015
 
 # updates
+num_epochs: 10
 batch_size: 256
 update_freq: 2
 tau: 0.99
