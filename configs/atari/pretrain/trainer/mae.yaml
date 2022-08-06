@@ -4,6 +4,7 @@ type: 'mae'
 obs_shape: None
 action_size: None
 t_step: None
+patch_size: None
 num_patches: None
 
 aug_types: []
@@ -11,7 +12,7 @@ aug_types: []
 # masking
 patch_mask_type: 'agnostic'
 patch_mask_ratio: 0.8
-act_mask_ratio: 0.6
+act_mask_ratio: 0.4
 
 optimizer:
     type: 'adam'
@@ -23,8 +24,9 @@ optimizer:
 # updates
 num_epochs: 10
 batch_size: 64
+update_freq: 1
 
 # logging
-log_every: 1000
+log_every: 100
 eval_every: 10
 save_every: 10

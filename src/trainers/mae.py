@@ -33,6 +33,7 @@ class MAETrainer(BaseTrainer):
         self.optimizer = self._build_optimizer(cfg.optimizer)
         self.lr_scheduler = self._build_scheduler(self.optimizer, cfg.num_epochs)
         
+        self.cfg.patch_size = self.model.backbone.patch_size
         self.cfg.num_patches = self.model.backbone.num_patches
 
     def _build_optimizer(self, optimizer_cfg):
@@ -54,10 +55,12 @@ class MAETrainer(BaseTrainer):
         # perform augmentation if needed
         aug_obs = self.aug_func(obs)
         aug_obs = rearrange(aug_obs, '(n t) c h w -> n t c h w', n=self.cfg.batch_size, t=self.cfg.t_step) 
-
+        patch = rearrange(aug_obs, 'n t c (h p1) (w p2) -> n (t h w) (p1 p2 c)', 
+                          p1 = self.cfg.patch_size[0], p2 = self.cfg.patch_size[1])        
+        
         # construct input data for vit
         x = {
-            'img': aug_obs,
+            'patch': patch,
             'act': act,
             'done': done,
         }
@@ -78,12 +81,27 @@ class MAETrainer(BaseTrainer):
         }
         
         # forward
+        x = self.model.backbone(x, mask)
+        patch_pred, act_pred = self.model.backbone.predict(x)
         
+        # loss
+        patch_loss = (patch_pred - patch) ** 2
+        patch_loss = patch_loss.mean(dim=-1)
         
+        act_pred = rearrange(act_pred, 'n t d -> (n t) d')
+        act = rearrange(act, 'n t -> (n t)')
+        act_mask = rearrange(act_mask, 'n t -> (n t)')
+        act_loss = F.cross_entropy(act_pred, act, reduction='none')
         
-        obs_pred = self.model.backbone(x, mask)        
+        # mean over removed patches
+        patch_mask, act_mask = patch_mask.to(self.device), act_mask.to(self.device)
+        patch_loss = (patch_loss * patch_mask).sum() / patch_mask.sum()
+        act_loss = (act_loss * act_mask).sum() / act_mask.sum()
         
-        pass
+        loss = patch_loss + act_loss
+        
+        return loss
+        
 
     def train(self):
         self.model.train()

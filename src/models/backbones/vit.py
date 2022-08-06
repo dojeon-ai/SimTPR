@@ -59,7 +59,7 @@ class Attention(nn.Module):
         attn = self.dropout(attn)
         
         # attn_mask: (n, t, t)
-        if attn_mask:
+        if attn_mask is not None:
             attn = attn * (1-attn_mask).unsqueeze(1)
         
         out = torch.matmul(attn, v)
@@ -114,16 +114,14 @@ class VIT(BaseBackbone):
         patch_dim = image_channel * patch_height * patch_width
 
         self.t_step = t_step
+        self.patch_size = patch_size
         self.num_patches = num_patches
 
         assert pool in {'mean'}, 'currently, pool must be mean (mean pooling)'
 
         ###########################################
         # Encoder 
-        self.patch_embed = nn.Sequential(
-            Rearrange('n t c (h p1) (w p2) -> n (t h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
-            nn.Linear(patch_dim, enc_dim),
-        )
+        self.patch_embed = nn.Linear(patch_dim, enc_dim)
 
         self.enc_spatial_embed = nn.Parameter(torch.randn(1, num_patches, enc_dim), requires_grad=False)
         self.enc_temporal_embed = nn.Parameter(torch.randn(1, t_step, enc_dim), requires_grad=False)
@@ -140,7 +138,9 @@ class VIT(BaseBackbone):
         # Decoder
         self.decoder_embed = nn.Linear(enc_dim, dec_dim)
         self.act_embed = nn.Embedding(action_size, dec_dim)
-        self.mask_token = nn.Parameter(torch.zeros(1, 1, dec_dim))
+        
+        self.patch_mask_token = nn.Parameter(torch.zeros(1, 1, dec_dim))
+        self.act_mask_token = nn.Parameter(torch.zeros(1, 1, dec_dim))
 
         self.dec_spatial_embed = nn.Parameter(torch.randn(1, num_patches, dec_dim), requires_grad=False) 
         self.dec_temporal_embed = nn.Parameter(torch.randn(1, t_step, dec_dim), requires_grad=False)
@@ -157,9 +157,9 @@ class VIT(BaseBackbone):
         self.act_pred = nn.Linear(dec_dim, action_size, bias=True)
         
         self._output_dim = dec_dim
-        self.initialize_weights()
+        self._initialize_weights()
 
-    def initialize_weights(self):
+    def _initialize_weights(self):
         # initialize (and freeze) spatial pos_embed by 2d sin-cos embedding
         # initialize (and freeze) temporal pos_embed by 1d sin-cos embedding
         enc_spatial_embed = get_2d_sincos_pos_embed(self.enc_spatial_embed.shape[-1], int((self.enc_spatial_embed.shape[1])**.5))
@@ -175,7 +175,8 @@ class VIT(BaseBackbone):
         self.dec_temporal_embed.copy_(torch.from_numpy(dec_temporal_embed).float().unsqueeze(0))
 
         # timm's trunc_normal_(std=.02) is effectively normal_(std=0.02) as cutoff is too big (2.)
-        torch.nn.init.normal_(self.mask_token, std=.02)
+        torch.nn.init.normal_(self.patch_mask_token, std=.02)
+        torch.nn.init.normal_(self.act_mask_token, std=.02)
 
         # initialize nn.Linear and nn.LayerNorm
         self.apply(self._init_weights)
@@ -190,7 +191,7 @@ class VIT(BaseBackbone):
             nn.init.constant_(m.bias, 0)
             nn.init.constant_(m.weight, 1.0)
             
-    def get_decoder_attn_mask(self, done):
+    def _get_decoder_attn_mask(self, done):
         N, T = done.shape
         
         # get uni-directional attn_mask (1: mask-out, 0: leave)
@@ -220,15 +221,13 @@ class VIT(BaseBackbone):
         
         return attn_mask
         
-        
 
     def forward(self, x, input_mask=None):
         """
         [param] x: dict
-            img: (N, T, C, H, W)
+            patch: (N, T * N_P, P_D) (T: t_step, N_P: num_patches)
             act: (N, T) 
             done: (N, T)
-            img_mask: (N, T)
         [param] input_mask: dict
             patch_mask_type
             patch_ids_keep
@@ -236,21 +235,14 @@ class VIT(BaseBackbone):
             act_ids_keep
             act_ids_restore
         """
-        img = x['img']
+        patch = x['patch']
         act = x['act']
         done = x['done']
         
-        N, T, C, H, W = img.shape
-
-        # TODO: model eval시에는 어떻게하면 masking되지 않고 진행?
-        # TODO: done 관련 처리 restore x
-        # TODO: attn_mask
-        
+        # TODO: model eval시에는 어떻게하면 masking되지 않고 진행?        
         ##############################################
-        # Encoder
-        
-        # N, L=T*P, D (T: t_step P: num_patches)
-        x = self.patch_embed(img)
+        # Encoder        
+        x = self.patch_embed(patch)
 
         # add pos embed w/o act token
         # pos_embed = spatial_embed + temporal_embed
@@ -273,12 +265,12 @@ class VIT(BaseBackbone):
         # Decoder
         
         # embed patches
-        self.decoder_embed(x)
+        x = self.decoder_embed(x)
         
         # restore patch-mask
         if input_mask:
-            patch_mask_len = self.t_step * self.num_patches - x.shape[1]
-            mask_tokens = torch.zeros((N, patch_mask_len, x.shape[-1])).to(x.device)
+            patch_mask_len = self.t_step * self.num_patches - x.shape[1]            
+            mask_tokens = self.patch_mask_token.repeat(x.shape[0], patch_mask_len, 1)            
             x = torch.cat([x, mask_tokens], dim=1)
             x = torch.gather(x, dim=1, index=input_mask['patch_ids_restore'].unsqueeze(-1).repeat(1,1,x.shape[-1]))
         
@@ -295,10 +287,9 @@ class VIT(BaseBackbone):
         if input_mask:
             x_act = get_1d_masked_input(x_act, input_mask['act_ids_keep'])            
             act_mask_len = self.t_step - x_act.shape[1]
-            act_mask_tokens = torch.zeros((N,act_mask_len,x_act.shape[-1])).to(x.device)
+            act_mask_tokens = self.act_mask_token.repeat(x.shape[0], act_mask_len, 1) 
             x_act = torch.cat([x_act, act_mask_tokens], dim=1)
             x_act = torch.gather(x_act, dim=1, index=input_mask['act_ids_restore'].unsqueeze(-1).repeat(1,1,x_act.shape[-1]))
-        
         
         # pos-embed to actions
         x_act = x_act + self.dec_temporal_embed
@@ -309,13 +300,20 @@ class VIT(BaseBackbone):
         x = rearrange(x, 'n t pa d -> n (t pa) d', t = self.t_step, pa = self.num_patches+1) # +1 for act
 
         # casual attention mask
-        attn_mask = self.get_decoder_attn_mask(done)
+        attn_mask = self._get_decoder_attn_mask(done)
 
         # decoder
         x = self.dec_emb_dropout(x)
         x = self.decoder(x, attn_mask)
         x = self.dec_norm(x)        
         
+        return x
+    
+    
+    def predict(self, x):
+        N, D = x.shape[0], x.shape[-1]
+        T, P = self.t_step, self.num_patches
+
         # extract patch & act
         patch_ids = torch.arange(P*T, device=x.device).reshape(T, P) + torch.arange(T, device=x.device).reshape(-1,1)
         x_patch = torch.gather(x, dim=1, index=patch_ids.reshape(1,-1,1).repeat(N,1,D))
@@ -323,8 +321,8 @@ class VIT(BaseBackbone):
         act_ids = (torch.arange(T, device=x.device)+1) * (P+1) - 1
         x_act = torch.gather(x, dim=1, index=act_ids.reshape(1,-1,1).repeat(N,1,D))
         
-        # prediction layer
+        # predict
         patch_pred = self.patch_pred(x_patch)
         act_pred = self.act_pred(x_act)
 
-        return patch_pred, act_pred, patch_mask, act_mask
+        return patch_pred, act_pred
