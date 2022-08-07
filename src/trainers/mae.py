@@ -1,7 +1,8 @@
 from .base import BaseTrainer
-from src.common.train_utils import LinearScheduler
+from src.common.train_utils import LinearScheduler, CosineAnnealingWarmupRestarts
 from src.common.train_utils import get_random_1d_mask, get_random_3d_mask
 
+import wandb
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -31,7 +32,7 @@ class MAETrainer(BaseTrainer):
         self.aug_func = aug_func.to(self.device)
         self.model = model.to(self.device)
         self.optimizer = self._build_optimizer(cfg.optimizer)
-        self.lr_scheduler = self._build_scheduler(self.optimizer, cfg.num_epochs)
+        self.lr_scheduler = self._build_scheduler(self.optimizer, cfg.num_epochs, cfg.scheduler)
         
         self.cfg.patch_size = self.model.backbone.patch_size
         self.cfg.num_patches = self.model.backbone.num_patches
@@ -41,13 +42,18 @@ class MAETrainer(BaseTrainer):
         if optimizer_type == 'adam':
             return optim.Adam(self.model.parameters(), 
                               **optimizer_cfg)
+        elif optimizer_type == 'adamw':
+            return optim.AdamW(self.model.parameters(), 
+                              **optimizer_cfg)
         else:
             raise ValueError
 
-    def _build_scheduler(self, optimizer, num_epochs):
-        return optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_epochs)
-
-    def _compute_loss(self, obs, act, done):
+    def _build_scheduler(self, optimizer, num_epochs, scheduler_cfg):
+        return CosineAnnealingWarmupRestarts(optimizer=optimizer,
+                                             first_cycle_steps=num_epochs,
+                                             **scheduler_cfg)
+    
+    def forward_model(self, obs, act, done):
         # reshape obs for augmentation
         obs = rearrange(obs, 'n t s c h w -> (n t) (s c) h w')
         obs = obs.float() / 255.0
@@ -72,17 +78,30 @@ class MAETrainer(BaseTrainer):
         act_shape = (self.cfg.batch_size, self.cfg.t_step) 
         act_ids_keep, act_mask, act_ids_restore = get_random_1d_mask(act_shape, self.cfg.act_mask_ratio)
         
+        # to device
+        patch_ids_keep = patch_ids_keep.to(self.device)
+        patch_mask = patch_mask.to(self.device)
+        patch_ids_restore = patch_ids_restore.to(self.device)
+        act_ids_keep = act_ids_keep.to(self.device)
+        act_mask = act_mask.to(self.device)
+        act_ids_restore = act_ids_restore.to(self.device)
+        
         mask = {
             'patch_mask_type': self.cfg.patch_mask_type,
-            'patch_ids_keep': patch_ids_keep.to(self.device),
-            'patch_ids_restore': patch_ids_restore.to(self.device),
-            'act_ids_keep': act_ids_keep.to(self.device),
-            'act_ids_restore': act_ids_restore.to(self.device),
+            'patch_ids_keep': patch_ids_keep,
+            'patch_ids_restore': patch_ids_restore,
+            'act_ids_keep': act_ids_keep,
+            'act_ids_restore': act_ids_restore,
         }
         
         # forward
         x = self.model.backbone(x, mask)
         patch_pred, act_pred = self.model.backbone.predict(x)
+        
+        return patch, patch_mask, patch_pred, act, act_mask, act_pred
+
+    def compute_loss(self, obs, act, done):
+        patch, patch_mask, patch_pred, act, act_mask, act_pred = self.forward_model(obs, act, done)
         
         # loss
         patch_loss = (patch_pred - patch) ** 2
@@ -94,40 +113,48 @@ class MAETrainer(BaseTrainer):
         act_loss = F.cross_entropy(act_pred, act, reduction='none')
         
         # mean over removed patches
-        patch_mask, act_mask = patch_mask.to(self.device), act_mask.to(self.device)
-        patch_loss = (patch_loss * patch_mask).sum() / patch_mask.sum()
+        #patch_loss = (patch_loss * patch_mask).sum() / patch_mask.sum()
+        patch_loss = patch_loss.mean()
         act_loss = (act_loss * act_mask).sum() / act_mask.sum()
         
         loss = patch_loss + act_loss
         
-        return loss
+        # log metrics
+        log_data = {}
+        log_data['loss'] = loss.item()
+        log_data['patch_loss'] = patch_loss.item()
+        log_data['act_loss'] = act_loss.item()
+        
+        act_correct = torch.max(act_pred, 1)[1] == act
+        log_data['act_acc'] = (act_correct * act_mask).sum() / act_mask.sum()
+
+        return loss, log_data
         
 
     def train(self):
         self.model.train()
         loss, t = 0, 0
         for e in range(1, self.cfg.num_epochs+1):
-            for batch in tqdm.tqdm(self.dataloader):
-                log_data = {}
-                
+            for batch in tqdm.tqdm(self.dataloader):                
                 # forward
                 obs = batch.observation.to(self.device)
                 act = batch.action.to(self.device)
                 done = batch.done.to(self.device)
-                loss = self._compute_loss(obs, act, done)
+                _loss, log_data = self.compute_loss(obs, act, done)
+                loss += _loss
                 
                 # backward
                 if (t % self.cfg.update_freq == 0) and (t>0):
                     loss /= self.cfg.update_freq
                     self.optimizer.zero_grad()
                     loss.backward()
+                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.cfg.clip_grad_norm)
                     self.optimizer.step()
-                    log_data['loss'] = loss.item()
                     loss = 0.0
 
                 # evaluation
                 if t % self.cfg.eval_every == 0:
-                    pass
+                    self.evaluate(obs, act, done)
                     
                 # log
                 self.logger.update_log(**log_data)
@@ -142,6 +169,31 @@ class MAETrainer(BaseTrainer):
 
             self.lr_scheduler.step()
 
-    def evaluate(self):
+            
+    def evaluate(self, obs, act, done):
         self.model.eval()
-        pass
+        with torch.no_grad():
+            patch, patch_mask, patch_pred, act, act_mask, act_pred = self.forward_model(obs, act, done)
+        
+        def depatchify(patch):
+            video = rearrange(patch, 'n (t h w) (p1 p2 c) -> n t c (h p1) (w p2)', 
+                              t=self.cfg.t_step, 
+                              c = self.cfg.obs_shape[1], 
+                              h=self.cfg.obs_shape[2]//self.cfg.patch_size[0], 
+                              w=self.cfg.obs_shape[2]//self.cfg.patch_size[1], 
+                              p1 = self.cfg.patch_size[0], 
+                              p2 = self.cfg.patch_size[1])
+            return video
+        
+        
+        
+        target_video = (depatchify(patch)[0])
+        masked_video = (depatchify(patch * (1-patch_mask).unsqueeze(-1))[0])
+        pred_video = (depatchify(patch_pred)[0]).to(float)
+        pred_video = torch.where(pred_video>=1.0, 1.0, pred_video)
+        pred_video = torch.where(pred_video<0.0, 0.0, pred_video)
+
+        wandb.log({'target_video': wandb.Image(target_video),
+                   'masked_video': wandb.Image(masked_video),
+                   'pred_video': wandb.Image(pred_video)
+                  }, step=self.logger.step)

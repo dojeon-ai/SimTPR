@@ -12,21 +12,29 @@ aug_types: []
 # masking
 patch_mask_type: 'agnostic'
 patch_mask_ratio: 0.8
-act_mask_ratio: 0.4
+act_mask_ratio: 0.1
 
 optimizer:
-    type: 'adam'
-    lr: 0.0001
-    weight_decay: 0.0000001 #1e-6
-    betas: [0.9, 0.999]
+    type: 'adamw'
+    lr: 0.001
+    weight_decay: 0.0001
+    betas: [0.9, 0.95]
     eps: 0.00015
+    
+scheduler:
+    cycle_mult: 1.0
+    max_lr: 0.001
+    min_lr: 0.0001
+    warmup_steps: 5
+    gamma: 1.0
 
 # updates
-num_epochs: 10
-batch_size: 64
+num_epochs: 50
+batch_size: 256
+clip_grad_norm: 0.5
 update_freq: 1
 
 # logging
 log_every: 100
-eval_every: 10
+eval_every: 1000
 save_every: 10

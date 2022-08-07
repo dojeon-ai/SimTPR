@@ -13,7 +13,7 @@ model_path: ''
 
 defaults:
 - _self_
-- dataloader: mixed_bn64_t20
+- dataloader: mixed_bn256_t10
 - env: atari
 - trainer: mae
 - model: vit-s

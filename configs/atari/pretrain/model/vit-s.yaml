@@ -6,7 +6,7 @@ backbone:
     patch_size: [14, 14]
     t_step: None
     pool: 'mean'
-    enc_depth: 4
+    enc_depth: 8
     enc_dim: 128
     enc_mlp_dim: 512
     enc_heads: 2
