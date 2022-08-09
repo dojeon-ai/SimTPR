@@ -115,9 +115,9 @@ class MAETrainer(BaseTrainer):
         # mean over removed patches
         #patch_loss = (patch_loss * patch_mask).sum() / patch_mask.sum()
         patch_loss = patch_loss.mean()
-        act_loss = (act_loss * act_mask).sum() / act_mask.sum()
+        act_loss = (act_loss * act_mask).sum() / (act_mask.sum() + 1e-6)
         
-        loss = patch_loss + act_loss
+        loss = patch_loss + self.cfg.lmbda * act_loss
         
         # log metrics
         log_data = {}
@@ -155,6 +155,7 @@ class MAETrainer(BaseTrainer):
                 # evaluation
                 if t % self.cfg.eval_every == 0:
                     self.evaluate(obs, act, done)
+                    self.model.train()
                     
                 # log
                 self.logger.update_log(**log_data)
@@ -163,7 +164,7 @@ class MAETrainer(BaseTrainer):
 
                 # proceed
                 t += 1
-            
+                        
             if e % self.cfg.save_every == 0:
                 self.logger.save_state_dict(model=self.model, epoch=e)
 

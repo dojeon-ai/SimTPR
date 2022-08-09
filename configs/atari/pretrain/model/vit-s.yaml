@@ -6,16 +6,16 @@ backbone:
     patch_size: [14, 14]
     t_step: None
     pool: 'mean'
-    enc_depth: 8
-    enc_dim: 128
-    enc_mlp_dim: 512
-    enc_heads: 2
-    dec_depth: 2 
-    dec_dim: 128
-    dec_mlp_dim: 512
-    dec_heads: 2 
-    emb_dropout: 0.1
-    dropout: 0.1 
+    enc_depth: 4
+    enc_dim: 192
+    enc_mlp_dim: 768
+    enc_heads: 3
+    dec_depth: 2
+    dec_dim: 192
+    dec_mlp_dim: 768
+    dec_heads: 3
+    emb_dropout: 0.0
+    dropout: 0.0
 head:
     type: None
 policy:

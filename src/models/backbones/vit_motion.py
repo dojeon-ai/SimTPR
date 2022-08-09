@@ -85,8 +85,8 @@ class Transformer(nn.Module):
         return x
 
 
-class VIT(BaseBackbone):
-    name = 'vit'
+class VITMotion(BaseBackbone):
+    name = 'vit_motion'
     def __init__(self,
                  obs_shape,
                  action_size,
@@ -135,28 +135,42 @@ class VIT(BaseBackbone):
         self.enc_norm = nn.LayerNorm(enc_dim)
 
         ########################################
-        # Decoder
-        self.decoder_embed = nn.Linear(enc_dim, dec_dim)
-        self.act_embed = nn.Embedding(action_size, dec_dim)
+        # Patch Decoder
+        self.patch_decoder_embed = nn.Linear(enc_dim, dec_dim)
         
         self.patch_mask_token = nn.Parameter(torch.zeros(1, 1, dec_dim))
-        self.act_mask_token = nn.Parameter(torch.zeros(1, 1, dec_dim))
-
-        self.dec_spatial_embed = nn.Parameter(torch.randn(1, num_patches, dec_dim), requires_grad=False) 
-        self.dec_temporal_embed = nn.Parameter(torch.randn(1, t_step, dec_dim), requires_grad=False)
-        self.dec_emb_dropout = nn.Dropout(emb_dropout)
+        self.patch_dec_spatial_embed = nn.Parameter(torch.randn(1, num_patches, dec_dim), requires_grad=False) 
+        self.patch_dec_temporal_embed = nn.Parameter(torch.randn(1, t_step, dec_dim), requires_grad=False)
+        self.patch_dec_emb_dropout = nn.Dropout(emb_dropout)
         
-        self.decoder = Transformer(dim=dec_dim, 
-                                   depth=dec_depth, 
-                                   heads=dec_heads, 
-                                   mlp_dim=dec_mlp_dim, 
-                                   dropout=dropout)
-        self.dec_norm = nn.LayerNorm(dec_dim)
+        self.patch_decoder = Transformer(dim=dec_dim, 
+                                         depth=dec_depth, 
+                                         heads=dec_heads, 
+                                         mlp_dim=dec_mlp_dim, 
+                                         dropout=dropout)
         
+        self.patch_dec_norm = nn.LayerNorm(dec_dim)        
         self.patch_pred = nn.Linear(dec_dim, patch_dim, bias=True)
+        
+        ########################################
+        # Motion Decoder
+        self.motion_decoder_embed = nn.Embedding(action_size, dec_dim)
+        
+        self.motion_mask_token = nn.Parameter(torch.zeros(1, 1, dec_dim))
+        self.motion_spatial_embed = nn.Parameter(torch.randn(1, num_patches, dec_dim), requires_grad=False) 
+        self.motion_temporal_embed = nn.Parameter(torch.randn(1, t_step, dec_dim), requires_grad=False)
+        self.motion_emb_dropout = nn.Dropout(emb_dropout)
+        
+        self.motion_decoder = Transformer(dim=dec_dim, 
+                                          depth=dec_depth, 
+                                          heads=dec_heads, 
+                                          mlp_dim=dec_mlp_dim, 
+                                          dropout=dropout)
+        self.motion_dec_norm = nn.LayerNorm(dec_dim)        
         self.act_pred = nn.Linear(dec_dim, action_size, bias=True)
-
+        
         self._output_dim = dec_dim
+        
         self._initialize_weights()
 
     def _initialize_weights(self):
