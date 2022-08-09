@@ -5,84 +5,7 @@ from .base import BaseBackbone
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
 from src.common.train_utils import get_1d_sincos_pos_embed_from_grid, get_2d_sincos_pos_embed, get_1d_masked_input, get_3d_masked_input
-
-
-class PreNorm(nn.Module):
-    def __init__(self, dim, fn):
-        super().__init__()
-        self.norm = nn.LayerNorm(dim)
-        self.fn = fn
-
-    def forward(self, x, **kwargs):
-        return self.fn(self.norm(x), **kwargs)
-
-
-class FeedForward(nn.Module):
-    def __init__(self, dim, hidden_dim, dropout = 0.):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(dim, hidden_dim),
-            nn.GELU(),
-            nn.Dropout(dropout),
-            nn.Linear(hidden_dim, dim),
-            nn.Dropout(dropout)
-        )
-
-    def forward(self, x):
-        return self.net(x)
-
-
-class Attention(nn.Module):
-    def __init__(self, dim, heads = 2, dropout = 0.):
-        super().__init__()
-        head_dim = dim // heads
-        self.heads = heads
-        self.scale = head_dim ** -0.5
-
-        self.attend = nn.Softmax(dim = -1)
-        self.dropout = nn.Dropout(dropout)
-
-        self.to_qkv = nn.Linear(dim, dim * 3, bias = False)
-
-        self.to_out = nn.Sequential(
-            nn.Linear(dim, dim),
-            nn.Dropout(dropout)
-        ) 
-
-    def forward(self, x, attn_mask=None):
-        qkv = self.to_qkv(x).chunk(3, dim = -1)
-        q, k, v = map(lambda t: rearrange(t, 'n t (h d) -> n h t d', h = self.heads), qkv)
-
-        dots = torch.matmul(q, k.transpose(-1, -2)) * self.scale
-
-        # attn_mask: (n, t, t)
-        if attn_mask is not None:
-            dots.masked_fill_(attn_mask.unsqueeze(1).bool(), -1e9)
-        
-        attn = self.attend(dots)
-        attn = self.dropout(attn)
-
-        out = torch.matmul(attn, v)
-        out = rearrange(out, 'n h t d -> n t (h d)')
-        out = self.to_out(out)
-        return out
-
-
-class Transformer(nn.Module):
-    def __init__(self, dim, depth, heads, mlp_dim, dropout = 0.):
-        super().__init__()
-        self.layers = nn.ModuleList([])
-        for _ in range(depth):
-            self.layers.append(nn.ModuleList([
-                PreNorm(dim, Attention(dim, heads = heads, dropout = dropout)),
-                PreNorm(dim, FeedForward(dim, mlp_dim, dropout = dropout))
-            ]))
-
-    def forward(self, x, attn_mask=None):
-        for attn, ff in self.layers:
-            x = attn(x, attn_mask=attn_mask) + x
-            x = ff(x) + x
-        return x
+from src.models.backbones.vit import Transformer
 
 
 class VITMotion(BaseBackbone):
@@ -157,9 +80,9 @@ class VITMotion(BaseBackbone):
         self.motion_decoder_embed = nn.Embedding(action_size, dec_dim)
         
         self.motion_mask_token = nn.Parameter(torch.zeros(1, 1, dec_dim))
-        self.motion_spatial_embed = nn.Parameter(torch.randn(1, num_patches, dec_dim), requires_grad=False) 
-        self.motion_temporal_embed = nn.Parameter(torch.randn(1, t_step, dec_dim), requires_grad=False)
-        self.motion_emb_dropout = nn.Dropout(emb_dropout)
+        self.motion_dec_spatial_embed = nn.Parameter(torch.randn(1, num_patches, dec_dim), requires_grad=False) 
+        self.motion_dec_temporal_embed = nn.Parameter(torch.randn(1, t_step, dec_dim), requires_grad=False)
+        self.motion_dec_emb_dropout = nn.Dropout(emb_dropout)
         
         self.motion_decoder = Transformer(dim=dec_dim, 
                                           depth=dec_depth, 
@@ -184,17 +107,25 @@ class VITMotion(BaseBackbone):
         self.enc_temporal_embed.copy_(torch.from_numpy(enc_temporal_embed).float().unsqueeze(0))
         self.enc_temporal_embed.requires_grad = True
 
-        dec_spatial_embed = get_2d_sincos_pos_embed(self.dec_spatial_embed.shape[-1], int((self.dec_spatial_embed.shape[1])**.5))
-        self.dec_spatial_embed.copy_(torch.from_numpy(dec_spatial_embed).float().unsqueeze(0))
-        self.dec_spatial_embed.requires_grad = True
+        patch_dec_spatial_embed = get_2d_sincos_pos_embed(self.patch_dec_spatial_embed.shape[-1], int((self.patch_dec_spatial_embed.shape[1])**.5))
+        self.patch_dec_spatial_embed.copy_(torch.from_numpy(patch_dec_spatial_embed).float().unsqueeze(0))
+        self.patch_dec_spatial_embed.requires_grad = True
 
-        dec_temporal_embed = get_1d_sincos_pos_embed_from_grid(self.dec_temporal_embed.shape[-1], np.arange(int(self.dec_temporal_embed.shape[1])))
-        self.dec_temporal_embed.copy_(torch.from_numpy(dec_temporal_embed).float().unsqueeze(0))
-        self.dec_temporal_embed.requires_grad = True
+        patch_dec_temporal_embed = get_1d_sincos_pos_embed_from_grid(self.patch_dec_temporal_embed.shape[-1], np.arange(int(self.patch_dec_temporal_embed.shape[1])))
+        self.patch_dec_temporal_embed.copy_(torch.from_numpy(patch_dec_temporal_embed).float().unsqueeze(0))
+        self.patch_dec_temporal_embed.requires_grad = True
+        
+        motion_dec_spatial_embed = get_2d_sincos_pos_embed(self.motion_dec_spatial_embed.shape[-1], int((self.motion_dec_spatial_embed.shape[1])**.5))
+        self.motion_dec_spatial_embed.copy_(torch.from_numpy(motion_dec_spatial_embed).float().unsqueeze(0))
+        self.motion_dec_spatial_embed.requires_grad = True
 
+        motion_dec_temporal_embed = get_1d_sincos_pos_embed_from_grid(self.motion_dec_temporal_embed.shape[-1], np.arange(int(self.motion_dec_temporal_embed.shape[1])))
+        self.motion_dec_temporal_embed.copy_(torch.from_numpy(motion_dec_temporal_embed).float().unsqueeze(0))
+        self.motion_dec_temporal_embed.requires_grad = True
+        
         # timm's trunc_normal_(std=.02) is effectively normal_(std=0.02) as cutoff is too big (2.)
         torch.nn.init.normal_(self.patch_mask_token, std=.02)
-        torch.nn.init.normal_(self.act_mask_token, std=.02)
+        torch.nn.init.normal_(self.motion_mask_token, std=.02)
 
         # initialize nn.Linear and nn.LayerNorm
         self.apply(self._init_weights)
@@ -213,7 +144,7 @@ class VITMotion(BaseBackbone):
         N, T = done.shape
         
         # get uni-directional attn_mask (1: mask-out, 0: leave)
-        L = self.t_step * (self.num_patches+1)
+        L = self.t_step * (self.num_patches)
         attn_mask = 1 - torch.ones((N, L, L), device=done.device).tril_()
         
         # find indexs where done is True
@@ -229,7 +160,7 @@ class VITMotion(BaseBackbone):
             done_mask[row, :col+1] = 1
             
         # repeat for patches & actions
-        done_mask = torch.repeat_interleave(done_mask, repeats=self.num_patches+1, dim=1)
+        done_mask = torch.repeat_interleave(done_mask, repeats=self.num_patches, dim=1)
             
         # expand to attn_mask
         done_mask = 1 -(1-done_mask).unsqueeze(-1).matmul((1-done_mask).unsqueeze(1))
@@ -240,7 +171,7 @@ class VITMotion(BaseBackbone):
         return attn_mask
         
 
-    def forward(self, x, input_mask=None):
+    def forward(self, x, input_mask=None, decoder_type='patch'):
         """
         [param] x: dict
             patch: (N, T * N_P, P_D) (T: t_step, N_P: num_patches)
@@ -250,14 +181,15 @@ class VITMotion(BaseBackbone):
             patch_mask_type
             patch_ids_keep
             patch_ids_restore
-            act_ids_keep
-            act_ids_restore
+        [param] decoder type: patch or motion
         """
+        
+        assert decoder_type in {'patch', 'motion'}, 'decoder type must be either patch or motion'
+        
         patch = x['patch']
         act = x['act']
         done = x['done']
         
-        # TODO: model eval시에는 어떻게하면 masking되지 않고 진행?        
         ##############################################
         # Encoder        
         x = self.patch_embed(patch)
@@ -280,51 +212,71 @@ class VITMotion(BaseBackbone):
         x = self.enc_norm(x)
 
         ##############################################
-        # Decoder
+        # Patch Decoder
         
-        # embed patches
-        x = self.decoder_embed(x)
+        if decoder_type == 'patch':
+            # embed patches
+            x = self.patch_decoder_embed(x)
+
+            # restore patch-mask
+            if input_mask:
+                patch_mask_len = self.t_step * self.num_patches - x.shape[1]            
+                mask_tokens = self.patch_mask_token.repeat(x.shape[0], patch_mask_len, 1)            
+                x = torch.cat([x, mask_tokens], dim=1)
+                x = torch.gather(x, dim=1, index=input_mask['patch_ids_restore'].unsqueeze(-1).repeat(1,1,x.shape[-1]))
+
+            # pos-embed to patches
+            dec_spatial_embed = self.patch_dec_spatial_embed.repeat(1, self.t_step, 1)
+            dec_temporal_embed = torch.repeat_interleave(self.patch_dec_temporal_embed, repeats=self.num_patches, dim=1)
+            dec_pos_embed = dec_spatial_embed + dec_temporal_embed
+            x = x + dec_pos_embed
+
+            # casual attention mask
+            attn_mask = self._get_decoder_attn_mask(done)
+
+            # decoder
+            x = self.patch_dec_emb_dropout(x)
+            x = self.patch_decoder(x, attn_mask)
+            x = self.patch_dec_norm(x)        
+
+        ##############################################
+        # Motion Decoder
         
-        # restore patch-mask
-        if input_mask:
-            patch_mask_len = self.t_step * self.num_patches - x.shape[1]            
-            mask_tokens = self.patch_mask_token.repeat(x.shape[0], patch_mask_len, 1)            
-            x = torch.cat([x, mask_tokens], dim=1)
-            x = torch.gather(x, dim=1, index=input_mask['patch_ids_restore'].unsqueeze(-1).repeat(1,1,x.shape[-1]))
-        
-        # pos-embed to patches
-        dec_spatial_embed = self.dec_spatial_embed.repeat(1, self.t_step, 1)
-        dec_temporal_embed = torch.repeat_interleave(self.dec_temporal_embed, repeats=self.num_patches, dim=1)
-        dec_pos_embed = dec_spatial_embed + dec_temporal_embed
-        x = x + dec_pos_embed
-        
-        # embed actions
-        x_act = self.act_embed(act)
-        
-        # mask & restore actions
-        if input_mask:
+        if decoder_type == 'motion':
+            # embed patches for motion decoder
+            x = self.motion_decoder_embed(x)
+
+            # pos-embed to patches
+            dec_spatial_embed = self.motion_dec_spatial_embed.repeat(1, self.t_step, 1)
+            dec_temporal_embed = torch.repeat_interleave(self.motion_dec_temporal_embed, repeats=self.num_patches, dim=1)
+            dec_pos_embed = dec_spatial_embed + dec_temporal_embed
+            x = x + dec_pos_embed
+
+            # mask motion tokens
+
+            
+            
+            
+            
             x_act = get_1d_masked_input(x_act, input_mask['act_ids_keep'])            
             act_mask_len = self.t_step - x_act.shape[1]
             act_mask_tokens = self.act_mask_token.repeat(x.shape[0], act_mask_len, 1) 
             x_act = torch.cat([x_act, act_mask_tokens], dim=1)
             x_act = torch.gather(x_act, dim=1, index=input_mask['act_ids_restore'].unsqueeze(-1).repeat(1,1,x_act.shape[-1]))
 
-        # pos-embed to actions
-        x_act = x_act + self.dec_temporal_embed
+            # pos-embed to actions
+            x_act = x_act + self.dec_temporal_embed
         
-        # concat patches with actions
-        x = rearrange(x, 'n (t p) d -> n t p d', t = self.t_step, p = self.num_patches)
-        x = torch.cat([x, x_act.unsqueeze(2)], dim=2)
-        x = rearrange(x, 'n t pa d -> n (t pa) d', t = self.t_step, pa = self.num_patches+1) # +1 for act
+            
+            
+            
 
-        # casual attention mask
-        attn_mask = self._get_decoder_attn_mask(done)
+            # decoder
+            x = self.patch_dec_emb_dropout(x)
+            x = self.patch_decoder(x, attn_mask)
+            x = self.patch_dec_norm(x)        
 
-        # decoder
-        x = self.dec_emb_dropout(x)
-        x = self.decoder(x, attn_mask)
-        x = self.dec_norm(x)        
-        
+            
         return x
     
     

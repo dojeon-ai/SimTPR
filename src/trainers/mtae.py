@@ -14,7 +14,7 @@ import tqdm
 
 
 class MAETrainer(BaseTrainer):
-    name = 'mae'
+    name = 'mtae'
     def __init__(self,
                  cfg,
                  device,
@@ -53,7 +53,7 @@ class MAETrainer(BaseTrainer):
                                              first_cycle_steps=num_epochs,
                                              **scheduler_cfg)
     
-    def forward_model(self, obs, done):
+    def forward_model(self, obs, act, done):
         # reshape obs for augmentation
         obs = rearrange(obs, 'n t s c h w -> (n t) (s c) h w')
         obs = obs.float() / 255.0
@@ -67,6 +67,7 @@ class MAETrainer(BaseTrainer):
         # construct input data for vit
         x = {
             'patch': patch,
+            'act': act,
             'done': done,
         }
         
@@ -74,41 +75,63 @@ class MAETrainer(BaseTrainer):
         video_shape = (self.cfg.batch_size, self.cfg.t_step, self.cfg.num_patches) 
         patch_ids_keep, patch_mask, patch_ids_restore = get_random_3d_mask(video_shape, self.cfg.patch_mask_ratio, self.cfg.patch_mask_type)
         
+        act_shape = (self.cfg.batch_size, self.cfg.t_step) 
+        act_ids_keep, act_mask, act_ids_restore = get_random_1d_mask(act_shape, self.cfg.act_mask_ratio)
+        
         # to device
         patch_ids_keep = patch_ids_keep.to(self.device)
         patch_mask = patch_mask.to(self.device)
         patch_ids_restore = patch_ids_restore.to(self.device)
+        act_ids_keep = act_ids_keep.to(self.device)
+        act_mask = act_mask.to(self.device)
+        act_ids_restore = act_ids_restore.to(self.device)
         
         mask = {
             'patch_mask_type': self.cfg.patch_mask_type,
             'patch_ids_keep': patch_ids_keep,
             'patch_ids_restore': patch_ids_restore,
+            'act_ids_keep': act_ids_keep,
+            'act_ids_restore': act_ids_restore,
         }
         
         # forward
-        x = self.model.backbone(x, mask)        
-        patch_pred = self.model.backbone.predict(x)
+        x = self.model.backbone(x, mask)
         
-        return patch, patch_mask, patch_pred
-    
+        import pdb
+        pdb.set_trace()
+        
+        
+        patch_pred, act_pred = self.model.backbone.predict(x)
+        
+        return patch, patch_mask, patch_pred, act, act_mask, act_pred
 
     def compute_loss(self, obs, act, done):
-        patch, patch_mask, patch_pred = self.forward_model(obs, done)
+        patch, patch_mask, patch_pred, act, act_mask, act_pred = self.forward_model(obs, act, done)
         
         # loss
         patch_loss = (patch_pred - patch) ** 2
         patch_loss = patch_loss.mean(dim=-1)
         
+        act_pred = rearrange(act_pred, 'n t d -> (n t) d')
+        act = rearrange(act, 'n t -> (n t)')
+        act_mask = rearrange(act_mask, 'n t -> (n t)')
+        act_loss = F.cross_entropy(act_pred, act, reduction='none')
+        
         # mean over removed patches
         #patch_loss = (patch_loss * patch_mask).sum() / patch_mask.sum()
         patch_loss = patch_loss.mean()
+        act_loss = (act_loss * act_mask).sum() / (act_mask.sum() + 1e-6)
         
-        loss = patch_loss
+        loss = patch_loss + self.cfg.lmbda * act_loss
         
         # log metrics
         log_data = {}
         log_data['loss'] = loss.item()
         log_data['patch_loss'] = patch_loss.item()
+        log_data['act_loss'] = act_loss.item()
+        
+        act_correct = torch.max(act_pred, 1)[1] == act
+        log_data['act_acc'] = (act_correct * act_mask).sum() / act_mask.sum()
 
         return loss, log_data
         
@@ -156,7 +179,7 @@ class MAETrainer(BaseTrainer):
     def evaluate(self, obs, act, done):
         self.model.eval()
         with torch.no_grad():
-            patch, patch_mask, patch_pred= self.forward_model(obs, done)
+            patch, patch_mask, patch_pred, act, act_mask, act_pred = self.forward_model(obs, act, done)
         
         def depatchify(patch):
             video = rearrange(patch, 'n (t h w) (p1 p2 c) -> n t c (h p1) (w p2)', 

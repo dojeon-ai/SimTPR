@@ -33,7 +33,8 @@ if __name__ == '__main__':
     # mode
     mode = args.pop('mode')
     if mode == 'test':
-        _games = ['alien', 'breakout', 'ms_pacman', 'qbert']
+        _games = ['alien', 'assault', 'breakout', 'frostbite', 
+                  'kangaroo', 'ms_pacman', 'pong', 'qbert']
 
     # snake case to camel case
     games = []
