@@ -16,7 +16,14 @@ class WandbTrainerLogger(object):
                    entity=cfg.entity,
                    config=dict_cfg,
                    group=cfg.exp_name,
-                   settings=wandb.Settings(start_method="thread"))    
+                   settings=wandb.Settings(start_method="thread"))  
+        
+        self._use_pretrained_model = False
+        if cfg.use_artifact:
+            artifact = wandb.run.use_artifact(str(cfg.artifact_name))
+            model_path = artifact.get_path(cfg.model_path).download()
+            self.pretrained_model_path = model_path
+            self._use_pretrained_model = True
 
         self.model_path = wandb.run.dir + '/model.pth'
         self.config_path = wandb.run.dir + '/config.json'
@@ -50,6 +57,13 @@ class WandbTrainerLogger(object):
 
     def get_artifacts(self):
         return self.artifacts
+    
+    def get_pretrained_model_path(self):
+        return self.pretrained_model_path
+
+    @property
+    def use_pretrained_model(self):
+        return self._use_pretrained_model
 
 
 class TrainerLogger(object):

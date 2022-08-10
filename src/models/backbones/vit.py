@@ -122,6 +122,7 @@ class VIT(BaseBackbone):
         ###########################################
         # Encoder 
         self.patch_embed = nn.Linear(patch_dim, enc_dim)
+        self.start_token = nn.Parameter(torch.zeros(1, 1, enc_dim))
 
         self.enc_spatial_embed = nn.Parameter(torch.randn(1, num_patches, enc_dim), requires_grad=False)
         self.enc_temporal_embed = nn.Parameter(torch.randn(1, t_step, enc_dim), requires_grad=False)
@@ -137,7 +138,7 @@ class VIT(BaseBackbone):
         ########################################
         # Decoder
         self.decoder_embed = nn.Linear(enc_dim, dec_dim)        
-        self.patch_mask_token = nn.Parameter(torch.zeros(1, 1, dec_dim))
+        self.mask_token = nn.Parameter(torch.zeros(1, 1, dec_dim))
 
         self.dec_spatial_embed = nn.Parameter(torch.randn(1, num_patches, dec_dim), requires_grad=False) 
         self.dec_temporal_embed = nn.Parameter(torch.randn(1, t_step, dec_dim), requires_grad=False)
@@ -174,7 +175,8 @@ class VIT(BaseBackbone):
         self.dec_temporal_embed.requires_grad = True
 
         # timm's trunc_normal_(std=.02) is effectively normal_(std=0.02) as cutoff is too big (2.)
-        torch.nn.init.normal_(self.patch_mask_token, std=.02)
+        torch.nn.init.normal_(self.start_token, std=.02)
+        torch.nn.init.normal_(self.mask_token, std=.02)
 
         # initialize nn.Linear and nn.LayerNorm
         self.apply(self._init_weights)
@@ -193,7 +195,7 @@ class VIT(BaseBackbone):
         N, T = done.shape
         
         # get uni-directional attn_mask (1: mask-out, 0: leave)
-        L = self.t_step * (self.num_patches)
+        L = self.t_step * self.num_patches
         attn_mask = 1 - torch.ones((N, L, L), device=done.device).tril_()
         
         # find indexs where done is True
@@ -217,18 +219,24 @@ class VIT(BaseBackbone):
         # 0: attn_mask & done_mask are both 0
         attn_mask = 1 - ((attn_mask == 0) * (done_mask == 0)).float()
         
+        # attn_mask for <start> token
+        # <start> token is always visible
+        attn_mask = torch.cat([torch.ones((N, 1, L), device=done.device), attn_mask], dim=1)
+        attn_mask = torch.cat([torch.zeros((N, L+1, 1), device=done.device), attn_mask], dim=2)
+        
         return attn_mask
         
 
     def forward(self, x, input_mask=None):
         """
         [param] x: dict
-            patch: (N, T * N_P, P_D) (T: t_step, N_P: num_patches)
+            patch: (N, L, D) (L = T * N_P, T: t_step, N_P: num_patches)
             done: (N, T)
         [param] input_mask: dict
             patch_mask_type
             patch_ids_keep
             patch_ids_restore
+        [return] x: (N, L+1, D) (+1 for <start> token)
         """
         patch = x['patch']
         done = x['done']
@@ -249,6 +257,10 @@ class VIT(BaseBackbone):
         if input_mask:
             x = rearrange(x, 'n (t p) d -> n t p d', t = self.t_step, p = self.num_patches)
             x = get_3d_masked_input(x, input_mask['patch_ids_keep'], input_mask['patch_mask_type'])
+        
+        # concatenate start_token
+        start_token = self.start_token.repeat(x.shape[0], 1, 1)
+        x = torch.cat([start_token, x], dim=1)
             
         # apply Transformer blocks
         x = self.emb_dropout(x)
@@ -261,10 +273,13 @@ class VIT(BaseBackbone):
         # embed patches
         x = self.decoder_embed(x)
         
+        # separate start token
+        start_token, x = x[:,0:1,:], x[:,1:,:]
+        
         # restore patch-mask
         if input_mask:
-            patch_mask_len = self.t_step * self.num_patches - x.shape[1]            
-            mask_tokens = self.patch_mask_token.repeat(x.shape[0], patch_mask_len, 1)            
+            mask_len = self.t_step * self.num_patches - x.shape[1]            
+            mask_tokens = self.mask_token.repeat(x.shape[0], mask_len, 1)            
             x = torch.cat([x, mask_tokens], dim=1)
             x = torch.gather(x, dim=1, index=input_mask['patch_ids_restore'].unsqueeze(-1).repeat(1,1,x.shape[-1]))
         
@@ -276,7 +291,10 @@ class VIT(BaseBackbone):
 
         # casual attention mask
         attn_mask = self._get_decoder_attn_mask(done)
-
+        
+        # concatenate start_token
+        x = torch.cat([start_token, x], dim=1)
+        
         # decoder
         x = self.dec_emb_dropout(x)
         x = self.decoder(x, attn_mask)
@@ -286,6 +304,6 @@ class VIT(BaseBackbone):
     
     
     def predict(self, x):        
-        patch_pred = self.patch_pred(x)
+        patch_pred = self.patch_pred(x[:, :-1, :])
 
         return patch_pred

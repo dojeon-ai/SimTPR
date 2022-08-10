@@ -13,8 +13,8 @@ import copy
 import tqdm
 
 
-class MAETrainer(BaseTrainer):
-    name = 'mtae'
+class MotionTrainer(BaseTrainer):
+    name = 'motion'
     def __init__(self,
                  cfg,
                  device,
@@ -71,39 +71,16 @@ class MAETrainer(BaseTrainer):
             'done': done,
         }
         
-        # construct mask data for vit-encoder
-        video_shape = (self.cfg.batch_size, self.cfg.t_step, self.cfg.num_patches) 
-        patch_ids_keep, patch_mask, patch_ids_restore = get_random_3d_mask(video_shape, self.cfg.patch_mask_ratio, self.cfg.patch_mask_type)
-        
-        act_shape = (self.cfg.batch_size, self.cfg.t_step) 
-        act_ids_keep, act_mask, act_ids_restore = get_random_1d_mask(act_shape, self.cfg.act_mask_ratio)
-        
-        # to device
-        patch_ids_keep = patch_ids_keep.to(self.device)
-        patch_mask = patch_mask.to(self.device)
-        patch_ids_restore = patch_ids_restore.to(self.device)
-        act_ids_keep = act_ids_keep.to(self.device)
-        act_mask = act_mask.to(self.device)
-        act_ids_restore = act_ids_restore.to(self.device)
-        
-        mask = {
-            'patch_mask_type': self.cfg.patch_mask_type,
-            'patch_ids_keep': patch_ids_keep,
-            'patch_ids_restore': patch_ids_restore,
-            'act_ids_keep': act_ids_keep,
-            'act_ids_restore': act_ids_restore,
-        }
-        
         # forward
-        x = self.model.backbone(x, mask)
+        x = self.model.backbone(x)
         
         import pdb
         pdb.set_trace()
         
         
-        patch_pred, act_pred = self.model.backbone.predict(x)
+        act_pred = self.model.backbone.predict(x)
         
-        return patch, patch_mask, patch_pred, act, act_mask, act_pred
+        return act, act_pred
 
     def compute_loss(self, obs, act, done):
         patch, patch_mask, patch_pred, act, act_mask, act_pred = self.forward_model(obs, act, done)

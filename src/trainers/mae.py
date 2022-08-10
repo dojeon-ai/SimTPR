@@ -95,13 +95,32 @@ class MAETrainer(BaseTrainer):
     def compute_loss(self, obs, act, done):
         patch, patch_mask, patch_pred = self.forward_model(obs, done)
         
+        ###############################
+        # done-mask
+        done = done.float()
+        done_mask = torch.zeros_like(done)
+        done_idx = torch.nonzero(done==1)
+        
+        # done is masked in reverse-order is required to keep consistency with evaluation stage.
+        for idx in done_idx:
+            row = idx[0]
+            col = idx[1]
+            done_mask[row, :col+1] = 1
+            
+        # repeat for patches
+        done_mask = torch.repeat_interleave(done_mask, repeats=self.cfg.num_patches, dim=1)
+
+        # do not reconstruct patches when done_mask=True
+        patch_mask = patch_mask * (1-done_mask)
+        
+        ###############################
         # loss
         patch_loss = (patch_pred - patch) ** 2
         patch_loss = patch_loss.mean(dim=-1)
         
         # mean over removed patches
-        #patch_loss = (patch_loss * patch_mask).sum() / patch_mask.sum()
-        patch_loss = patch_loss.mean()
+        patch_loss = (patch_loss * patch_mask).sum() / patch_mask.sum()
+        #patch_loss = patch_loss.mean()
         
         loss = patch_loss
         
@@ -167,8 +186,6 @@ class MAETrainer(BaseTrainer):
                               p1 = self.cfg.patch_size[0], 
                               p2 = self.cfg.patch_size[1])
             return video
-        
-        
         
         target_video = (depatchify(patch)[0])
         masked_video = (depatchify(patch * (1-patch_mask).unsqueeze(-1))[0])

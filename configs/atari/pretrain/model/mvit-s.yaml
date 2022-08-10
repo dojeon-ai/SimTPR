@@ -1,6 +1,6 @@
 # VIT-S
 backbone:
-    type: 'vit_motion'
+    type: 'mvit'
     obs_shape: None
     action_size: None
     patch_size: [14, 14]

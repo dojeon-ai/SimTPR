@@ -47,6 +47,15 @@ def run(args):
     
     # logger
     logger= WandbTrainerLogger(cfg)
+    
+    # load-pretrained
+    if logger.use_pretrained_model:
+        pretrained_model_path = logger.get_pretrained_model_path()
+        state_dict = logger.load_state_dict(pretrained_model_path)
+        
+        
+        
+        #model.load_backbone(state_dict)
 
     # model
     model = build_model(cfg.model)

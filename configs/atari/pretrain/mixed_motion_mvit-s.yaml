@@ -15,5 +15,5 @@ defaults:
 - _self_
 - dataloader: mixed_bn256_t10
 - env: atari
-- trainer: mae
-- model: vit_motion-s
+- trainer: motion
+- model: mvit-s
