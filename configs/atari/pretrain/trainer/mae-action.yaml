@@ -1,5 +1,6 @@
 # defaults
 type: 'mae'
+loss_type: 'act'
 
 obs_shape: None
 action_size: None
@@ -11,8 +12,8 @@ aug_types: []
 
 # masking
 patch_mask_type: 'agnostic'
-patch_mask_ratio: 0.8
-act_mask_ratio: 0.0
+patch_mask_ratio: 0
+act_mask_ratio: 2/9
 
 optimizer:
     type: 'adamw'
@@ -25,14 +26,13 @@ scheduler:
     cycle_mult: 1.0
     max_lr: 0.003
     min_lr: 0.0003
-    warmup_steps: 10
+    warmup_steps: 2
     gamma: 1.0
 
 # updates
-num_epochs: 100
+num_epochs: 10
 batch_size: 256
 clip_grad_norm: 1.0
-update_freq: 1
 
 # logging
 log_every: 100

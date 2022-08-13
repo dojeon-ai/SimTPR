@@ -75,7 +75,7 @@ def run(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(allow_abbrev=False)
     parser.add_argument('--config_dir',  type=str,    default='atari/pretrain')
-    parser.add_argument('--config_name', type=str,    default='mixed_mae_vit-s') 
+    parser.add_argument('--config_name', type=str,    default='mixed_mae-patch_vit-s') 
     parser.add_argument('--overrides',   action='append', default=[])
     args = parser.parse_args()
 

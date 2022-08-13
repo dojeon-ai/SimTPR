@@ -1,5 +1,6 @@
 # defaults
-type: 'motion'
+type: 'mae'
+loss_type: 'patch'
 
 obs_shape: None
 action_size: None
@@ -32,7 +33,6 @@ scheduler:
 num_epochs: 100
 batch_size: 256
 clip_grad_norm: 1.0
-update_freq: 1
 
 # logging
 log_every: 100

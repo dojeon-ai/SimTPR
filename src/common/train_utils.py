@@ -428,7 +428,7 @@ if __name__ == '__main__':
         ids_keep, mask, ids_restore = get_random_3d_mask(shape, mask_ratio, mask_type)
         x_masked = get_3d_masked_input(x, ids_keep.to(device), mask_type)
         x_ = torch.cat([x_masked, mask_tokens], dim=1)
-        x_= torch.gather(x_, dim=1, index=ids_restore.unsqueeze(-1).repeat(1,1,D)) # unshuffle
+        x_= torch.gather(x_, dim=1, index=ids_restore.unsqueeze(-1).repeat(1,1,D).to(device)) # unshuffle
 
         num_masked = torch.sum(torch.sum(x_ - x.reshape(N, T*P, D), -1) == 0)
         assert num_masked == round(N*T*P*(1-mask_ratio))
