@@ -204,39 +204,6 @@ def random_3d_space_masking(shape, mask_ratio):
     return ids_keep, mask, ids_restore
 
 
-def get_random_3d_mask(shape, mask_ratio, mask_type):
-    """
-    Perform per-sample random masking by per-sample shuffling.
-    Per-sample shuffling is done by argsort random noise.
-
-    [param] shape: shape for batch of videos (N, T, P) (T: time_steps, P: num_patches).
-    [param] mask_ratio: portion of the mask.
-    [param] mask_type: masking option which is one of ['agnostic', 'space', 'time'].
-
-    [return] ids_keep: ids to gather unmaksed patches from x.
-    [return] mask: boolean mask to indicate the masked patches (N, T*P) (later used for loss computation)
-    [return] ids_restore: x_mask can find its sequence via unshuffling with ids_restore. (used in decoder)
-    """
-    assert mask_type in {'agnostic', 'space', 'time', 'cube'}, 'mask_type should be defined within [agnostic, space, time]'
-
-    # get random noise for masking
-    if mask_type == 'agnostic':
-        ids_keep, mask, ids_restore = random_3d_agnostic_masking(shape, mask_ratio)
-            
-    # space masking is identical to the tube masking in Video MAE
-    # Video MAE: https://arxiv.org/abs/2203.12602
-    elif mask_type == 'space': 
-        ids_keep, mask, ids_restore = random_3d_space_masking(shape, mask_ratio)
-
-    elif mask_type == 'time':
-        ids_keep, mask, ids_restore = random_3d_time_masking(shape, mask_ratio)
-
-    elif mask_type == 'cube':
-        ids_keep, mask, ids_restore = random_3d_cube_masking(shape, mask_ratio)
-
-    return ids_keep, mask, ids_restore
-
-
 def random_3d_cube_masking(shape, mask_ratio):
     #import pdb; pdb.set_trace()
     N, T, P = shape #32 * 16 *49
@@ -277,6 +244,39 @@ def random_3d_cube_masking(shape, mask_ratio):
     # get temporally extended restoring index
     ids_keep = torch.repeat_interleave(ids_keep, repeats=repeats_time, dim=1) + spatial_indexing
     ids_keep = ids_keep.reshape(ids_keep.size(0), -1)
+
+    return ids_keep, mask, ids_restore
+
+
+def get_random_3d_mask(shape, mask_ratio, mask_type):
+    """
+    Perform per-sample random masking by per-sample shuffling.
+    Per-sample shuffling is done by argsort random noise.
+
+    [param] shape: shape for batch of videos (N, T, P) (T: time_steps, P: num_patches).
+    [param] mask_ratio: portion of the mask.
+    [param] mask_type: masking option which is one of ['agnostic', 'space', 'time'].
+
+    [return] ids_keep: ids to gather unmaksed patches from x.
+    [return] mask: boolean mask to indicate the masked patches (N, T*P) (later used for loss computation)
+    [return] ids_restore: x_mask can find its sequence via unshuffling with ids_restore. (used in decoder)
+    """
+    assert mask_type in {'agnostic', 'space', 'time', 'cube'}, 'mask_type should be defined within [agnostic, space, time]'
+
+    # get random noise for masking
+    if mask_type == 'agnostic':
+        ids_keep, mask, ids_restore = random_3d_agnostic_masking(shape, mask_ratio)
+            
+    # space masking is identical to the tube masking in Video MAE
+    # Video MAE: https://arxiv.org/abs/2203.12602
+    elif mask_type == 'space': 
+        ids_keep, mask, ids_restore = random_3d_space_masking(shape, mask_ratio)
+
+    elif mask_type == 'time':
+        ids_keep, mask, ids_restore = random_3d_time_masking(shape, mask_ratio)
+
+    elif mask_type == 'cube':
+        ids_keep, mask, ids_restore = random_3d_cube_masking(shape, mask_ratio)
 
     return ids_keep, mask, ids_restore
 
