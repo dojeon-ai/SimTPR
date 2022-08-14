@@ -43,6 +43,10 @@ def run(args):
     obs_shape = [cfg.dataloader.frames] + list(env.observation_space.shape[1:])
     cfg.trainer.obs_shape = cfg.model.backbone.obs_shape = obs_shape
     cfg.trainer.action_size = cfg.model.backbone.action_size = env.action_space.n
+
+    if 'action_size' in cfg.model.head:
+        cfg.model.head.action_size = env.action_space.n
+
     del env
     
     # logger

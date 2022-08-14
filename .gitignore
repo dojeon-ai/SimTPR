@@ -122,4 +122,8 @@ data/atari
 data/mujoco
 data/youtube
 artifacts
-rars
+rar
+Roms.rar
+google-cloud-cli-395.0.0-linux-x86_64.tar.gz
+Roms/
+google-cloud-sdk/
