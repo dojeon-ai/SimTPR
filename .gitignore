@@ -123,3 +123,6 @@ data/mujoco
 data/youtube
 artifacts
 rars
+gz
+Roms/
+google-cloud-sdk/
