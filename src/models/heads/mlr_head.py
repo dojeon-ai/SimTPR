@@ -5,6 +5,55 @@ import numpy as np
 from src.common.train_utils import get_1d_sincos_pos_embed_from_grid, get_2d_sincos_pos_embed, get_1d_masked_input, get_3d_masked_input
 from einops import rearrange, repeat
 
+
+def get_attn_mask(t_step, num_patches, done, use_action):
+    """
+    [params] t_step: time step 
+    [params] num_patches: number of patches for each time step
+    [params] done: (N, T-1)
+    [params] use_action: (bool) whether to attend action or not
+    [returns] attn_mask: (N, L, L) (L=T*(P+1)-1)
+    """
+    N = done.shape[0]
+    L = t_step * num_patches
+
+    # find indexs where done is True
+    done_mask = torch.zeros((N, t_step), device=done.device)
+    done = done.float()
+    done_idx = torch.nonzero(done==1)
+
+    # done-mask (1: mask_out, 0: leave).
+    # done is masked in reverse-order is required to keep consistency with evaluation stage.
+    for idx in done_idx:
+        row = idx[0]
+        col = idx[1]
+        done_mask[row, :col+1] = 1
+
+    # repeat for patches
+    patch_mask = torch.repeat_interleave(done_mask, repeats=num_patches, dim=1)
+
+    # expand to attn_mask
+    attn_mask = 1 -(1-patch_mask).unsqueeze(-1).matmul((1-patch_mask).unsqueeze(1))
+
+    # generate additional mask if use_action
+    if use_action:
+        act_mask = done_mask[:, :-1]     
+        
+    else:
+        act_mask = torch.ones((N, t_step-1), device=done.device)
+
+    # generate patch-act mask
+    patch_act_mask = 1 -(1-patch_mask).unsqueeze(-1).matmul((1-act_mask).unsqueeze(1))
+    act_patch_mask = 1 -(1-act_mask).unsqueeze(-1).matmul((1-patch_mask).unsqueeze(1))
+    act_act_mask = 1 -(1-act_mask).unsqueeze(-1).matmul((1-act_mask).unsqueeze(1))
+        
+    # concatenate patch-act mask to attn_mask
+    attn_mask = torch.cat([attn_mask, patch_act_mask], dim=2)
+    _act_mask = torch.cat([act_patch_mask, act_act_mask], dim=2)
+    attn_mask = torch.cat([attn_mask, _act_mask], dim=1)
+        
+    return attn_mask
+
 class PreNorm(nn.Module):
     def __init__(self, dim, fn):
         super().__init__()
