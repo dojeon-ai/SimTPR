@@ -35,7 +35,7 @@ if __name__ == '__main__':
     if mode == 'test':
         _games = ['alien', 'assault', 'breakout', 'frostbite', 
                   'kangaroo', 'ms_pacman', 'pong', 'qbert']
-
+        
     # snake case to camel case
     games = []
     for _game in _games:
