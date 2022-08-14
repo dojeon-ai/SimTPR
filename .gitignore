@@ -122,7 +122,7 @@ data/atari
 data/mujoco
 data/youtube
 artifacts
-rars
-gz
+*.rars
+*.gz
 Roms/
 google-cloud-sdk/
