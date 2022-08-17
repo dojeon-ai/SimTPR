@@ -31,6 +31,16 @@ class Model(nn.Module):
                     pretrained_state_dict['policy.fc_adv.0.weight_mu'] = param
                 
         self.load_state_dict(pretrained_state_dict, strict=False)
+    
+    def load_encoder(self, state_dict):
+        _pretrained_state_dict = state_dict['model_state_dict']
+        pretrained_state_dict = {}
+        for name, param in _pretrained_state_dict.items():
+            if 'backbone.encoder' in name:
+                pretrained_state_dict[name] = param
+                
+        self.load_state_dict(pretrained_state_dict, strict=False)
+        
         
     def load_policy(self, state_dict):
         #if name == 'head.projector.0.weight':

@@ -36,7 +36,13 @@ class MAETrainer(BaseTrainer):
         
         self.cfg.patch_size = self.model.backbone.patch_size
         self.cfg.num_patches = self.model.backbone.num_patches
-
+        
+        assert cfg.pretrain_type in {'naive', 'freeze'}
+        if cfg.pretrain_type == 'freeze':
+            for param in self.model.backbone.encoder.parameters():
+                param.requires_grad = False
+            print('hi')
+        
     def _build_optimizer(self, optimizer_cfg):
         optimizer_type = optimizer_cfg.pop('type')
         if optimizer_type == 'adam':
@@ -110,9 +116,13 @@ class MAETrainer(BaseTrainer):
         }
         return act_mask_dict
 
-    def compute_loss(self, obs, act, done):
-        x = self.get_model_input(obs, act, done)
-        
+    def compute_loss(self, obs, act, done):        
+        # perform augmentation if needed
+        x = rearrange(obs, 'n t c h w -> n (t c) h w')
+        with torch.no_grad():
+            x = self.aug_func(x)
+        x = rearrange(x, 'n (t c) h w -> n t c h w', t=self.cfg.t_step) 
+                
         # done-mask
         done_mask = torch.zeros((done.shape[0], self.cfg.t_step), device=done.device)
         done = done.float()
@@ -124,16 +134,23 @@ class MAETrainer(BaseTrainer):
             col = idx[1]
             done_mask[row, :col+1] = 1
         
+        # mask-out an input by masking
+        x = x * (1-rearrange(done_mask, 'n t -> n t 1 1 1'))        
+        
         ##################
         # patch loss
         if self.cfg.loss_type == 'patch':
+            # get target
+            patch = rearrange(obs, 'n t c (h p1) (w p2) -> n (t h w) (p1 p2 c)', 
+                          p1 = self.cfg.patch_size[0], p2 = self.cfg.patch_size[1])
+            
             # get patch mask
             patch_mask_dict = self.get_patch_mask()
             
             # predict masked patches
-            patch_pred, _ = self.model.backbone(x, use_action=False, 
-                                                patch_mask_dict=patch_mask_dict, 
-                                                act_mask_dict=None)
+            x = self.model.backbone(x, patch_mask_dict=patch_mask_dict)
+            patch_pred, _ = self.model.head(x, act, done, 
+                                         use_action=False, patch_mask_dict=patch_mask_dict)
 
             # repeat for patches
             patch_mask = torch.repeat_interleave(done_mask, repeats=self.cfg.num_patches, dim=1)
@@ -142,7 +159,7 @@ class MAETrainer(BaseTrainer):
             patch_mask = patch_mask_dict['patch_mask'] * (1-patch_mask)
             
             # loss
-            patch_loss = (patch_pred - x['patch']) ** 2
+            patch_loss = (patch_pred - patch) ** 2
             patch_loss = patch_loss.mean(dim=-1)
 
             # mean over removed patches
@@ -159,9 +176,9 @@ class MAETrainer(BaseTrainer):
             act_mask_dict = self.get_act_mask()
             
             # predict masked patches
-            _, act_pred = self.model.backbone(x, use_action=True, 
-                                              patch_mask_dict=None, 
-                                              act_mask_dict=act_mask_dict)
+            x = self.model.backbone(x)
+            _, act_pred = self.model.head(x, act, done, 
+                                         use_action=True, act_mask_dict=act_mask_dict)
             
             # do not reconstruct actions when done_mask=True
             act_mask = act_mask_dict['act_mask'] * (1-done_mask[:, :-1])
@@ -192,6 +209,7 @@ class MAETrainer(BaseTrainer):
             for batch in tqdm.tqdm(self.dataloader):                         
                 # forward
                 obs = batch.observation.to(self.device)
+                obs = rearrange(obs, 'n t s c h w -> n t (s c) h w') / 255.0
                 act = batch.action.to(self.device)[:, :-1]
                 done = batch.done.to(self.device)[:, :-1]
                 loss, log_data = self.compute_loss(obs, act, done)
@@ -224,11 +242,12 @@ class MAETrainer(BaseTrainer):
     def evaluate(self, obs, act, done):
         self.model.eval()
         with torch.no_grad():
-            x = self.get_model_input(obs, act, done)
             patch_mask_dict = self.get_patch_mask()  
-            patch_pred, _ = self.model.backbone(x, use_action=False, 
-                                                patch_mask_dict=patch_mask_dict, 
-                                                act_mask_dict=None)
+            x = self.model.backbone(obs, patch_mask_dict=patch_mask_dict)
+            patch_pred, _ = self.model.head(x, act, done.float(), 
+                                         use_action=False, patch_mask_dict=patch_mask_dict)
+            patch = rearrange(obs, 'n t c (h p1) (w p2) -> n (t h w) (p1 p2 c)', 
+                          p1 = self.cfg.patch_size[0], p2 = self.cfg.patch_size[1])
         
         def depatchify(patch):
             video = rearrange(patch, 'n (t h w) (p1 p2 c) -> n t c (h p1) (w p2)', 
@@ -240,7 +259,7 @@ class MAETrainer(BaseTrainer):
                               p2 = self.cfg.patch_size[1])
             return video
         
-        patch, patch_mask = x['patch'], patch_mask_dict['patch_mask']
+        patch_mask = patch_mask_dict['patch_mask']
         
         target_video = (depatchify(patch)[0])
         masked_video = (depatchify(patch * (1-patch_mask).unsqueeze(-1))[0])

@@ -10,7 +10,7 @@ t_step: 8
 max_size: 1000000 # 1e6
 dataset_on_gpu: False #True
 dataset_on_disk: True #False
-batch_size: 512
+batch_size: 256
 full_action_set: False
 num_workers: 0 # 0 means that the data will be loaded in the main process
 pin_memory: True # False 

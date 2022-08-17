@@ -1,6 +1,7 @@
 # defaults
 type: 'mae'
 loss_type: 'patch'
+pretrain_type: 'naive'
 
 obs_shape: None
 action_size: None
@@ -8,11 +9,11 @@ t_step: None
 patch_size: None
 num_patches: None
 
-aug_types: []
+aug_types: [random_shift, intensity] #, intensity]
 
 # masking
 patch_mask_type: 'agnostic'
-patch_mask_ratio: 0.8
+patch_mask_ratio: 0.75
 act_mask_ratio: 0.0
 
 optimizer:

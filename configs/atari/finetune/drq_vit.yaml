@@ -1,8 +1,8 @@
 # OT-Rainbow
-project_name: 'atari_pretrain'
+project_name: 'atari_finetune'
 entity: 'draftrec'
 group_name: 'test'
-exp_name: 'mae-action_vit-s'
+exp_name: 'drq_vit'
 device: cuda:0
 seed: 0
 
@@ -13,7 +13,6 @@ model_path: ''
 
 defaults:
 - _self_
-- dataloader: mixed_bn256_t8
-- env: atari
-- trainer: mae-action
-- model: vit-s
+- agent: drq_vit
+- env: atari_t10
+- model: vit

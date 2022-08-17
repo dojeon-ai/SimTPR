@@ -33,35 +33,41 @@ def run(args):
     torch.set_num_threads(1)#<- when dataset on disk
     cfg.dataloader.device = cfg.device
     dataloader = build_dataloader(cfg.dataloader)
-    if 't_step' in cfg.model.backbone:
-        cfg.trainer.t_step = cfg.model.backbone.t_step = cfg.dataloader.t_step
-    else:
-        cfg.trainer.t_step = cfg.dataloader.t_step
 
     # shape config
     env, _ = build_env(cfg.env)
     obs_shape = [cfg.dataloader.frames] + list(env.observation_space.shape[1:])
-    cfg.trainer.obs_shape = cfg.model.backbone.obs_shape = obs_shape
-    cfg.trainer.action_size = cfg.model.backbone.action_size = env.action_space.n
+    action_size = env.action_space.n
+    
+    # integrate hyper-params
+    param_dict = {'t_step': cfg.dataloader.t_step,
+                  'obs_shape': obs_shape,
+                  'action_size': action_size}
 
-    if 'action_size' in cfg.model.head:
-        cfg.model.head.action_size = env.action_space.n
-
+    for key, value in param_dict.items():
+        if key in cfg.model.backbone:
+            cfg.model.backbone[key] = value
+            
+        if key in cfg.model.head:
+            cfg.model.head[key] = value
+            
+        if key in cfg.trainer:
+            cfg.trainer[key] = value
     del env
     
     # logger
     logger= WandbTrainerLogger(cfg)
+
+    # model
+    model = build_model(cfg.model)
     
     # load-pretrained
     if logger.use_pretrained_model:
         pretrained_model_path = logger.get_pretrained_model_path()
         state_dict = logger.load_state_dict(pretrained_model_path)
-        #model.load_backbone(state_dict)
-
-    # model
-    model = build_model(cfg.model)
+        model.load_encoder(state_dict)
     
-    # agent    
+    # trainer
     trainer = build_trainer(cfg=cfg.trainer,
                             dataloader=dataloader,
                             device=device,

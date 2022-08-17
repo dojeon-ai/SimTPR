@@ -47,12 +47,13 @@ class Attention(nn.Module):
             nn.Dropout(dropout)
         ) 
 
-    def forward(self, x, attn_mask):
+    def forward(self, x, attn_mask=None):
         qkv = self.to_qkv(x).chunk(3, dim = -1)
         q, k, v = map(lambda t: rearrange(t, 'n t (h d) -> n h t d', h = self.heads), qkv)
 
         dots = torch.matmul(q, k.transpose(-1, -2)) * self.scale
-        dots.masked_fill_(attn_mask.unsqueeze(1).bool(), -1e9)
+        if attn_mask:
+            dots.masked_fill_(attn_mask.unsqueeze(1).bool(), -1e9)
         
         attn = self.attend(dots)
         attn = self.dropout(attn)
@@ -73,7 +74,7 @@ class Transformer(nn.Module):
                 PreNorm(dim, FeedForward(dim, mlp_dim, dropout = dropout))
             ]))
 
-    def forward(self, x, attn_mask):
+    def forward(self, x, attn_mask=None):
         for attn, ff in self.layers:
             x = attn(x, attn_mask=attn_mask) + x
             x = ff(x) + x
