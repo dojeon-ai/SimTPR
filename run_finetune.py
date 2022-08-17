@@ -29,8 +29,25 @@ def run(args):
 
     # environment
     train_env, eval_env = build_env(cfg.env)
-    cfg.agent.obs_shape = cfg.model.backbone.obs_shape = train_env.observation_space.shape
-    cfg.agent.action_size = cfg.model.backbone.action_size = cfg.model.policy.action_size = train_env.action_space.n
+    obs_shape = train_env.observation_space.shape
+    action_size = train_env.action_space.n
+
+        # integrate hyper-params
+    param_dict = {'obs_shape': obs_shape,
+                  'action_size': action_size}
+
+    for key, value in param_dict.items():
+        if key in cfg.model.backbone:
+            cfg.model.backbone[key] = value
+            
+        if key in cfg.model.head:
+            cfg.model.head[key] = value
+
+        if key in cfg.model.policy:
+            cfg.model.policy[key] = value
+            
+        if key in cfg.agent:
+            cfg.agent[key] = value
     
     # logger
     logger= WandbAgentLogger(cfg)

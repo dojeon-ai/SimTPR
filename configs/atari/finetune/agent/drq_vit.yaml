@@ -7,7 +7,7 @@ action_size: None
 aug_types: [random_shift, intensity]
 
 buffer: 
-    type: 'vit_buffer'
+    type: 'per_buffer'
     size: 100000
     n_step: 10
     prior_exp: 0.5 # ω

@@ -24,8 +24,11 @@ class VIT(BaseBackbone):
                  dropout):
 
         super().__init__()
+        # TODO: error when frame is not 1.
+        # frame, channel, image_height, image_width = obs_shape
+        # image_channel = frame * channel
         frame, channel, image_height, image_width = obs_shape
-        image_channel = frame * channel
+        image_channel = channel        
         patch_height, patch_width = patch_size
 
         assert image_height % patch_height == 0 and image_width % patch_width == 0, 'Image must be divisible by the patch size.'
@@ -49,7 +52,8 @@ class VIT(BaseBackbone):
                                    mlp_dim=enc_mlp_dim, 
                                    dropout=dropout)
         self.out_norm = nn.LayerNorm(enc_dim)        
-        assert pool in {'mean'}, 'currently, pool must be mean (mean pooling)'
+        assert pool in {'identity', 'gap', 'lap'}, 'currently, pool must be mean (mean pooling)'
+        self.pool = pool
         self._output_dim = enc_dim
         self._initialize_weights()
         
@@ -94,8 +98,13 @@ class VIT(BaseBackbone):
             act_ids_restore
         [return] x: (N, L, D) (if use_action: L=T*(P+1)-1 else: L=T*P)
         """
-        x = rearrange(x, 'n t c (h p1) (w p2) -> n (t h w) (p1 p2 c)', 
-                      p1 = self.patch_size[0], p2 = self.patch_size[1])
+        if len(x.shape) == 4:
+            x = rearrange(x, 'n t (h p1) (w p2) -> n (t h w) (p1 p2)', 
+                          p1 = self.patch_size[0], p2 = self.patch_size[1])
+
+        elif len(x.shape) == 5:
+            x = rearrange(x, 'n t c (h p1) (w p2) -> n (t h w) (p1 p2 c)', 
+                          p1 = self.patch_size[0], p2 = self.patch_size[1])
         
         # patch embed
         x = self.patch_embed(x)
@@ -117,6 +126,16 @@ class VIT(BaseBackbone):
         x = self.emb_dropout(x)
         x = self.encoder(x)
         x = self.out_norm(x)
+
+        # pooling
+        if self.pool == 'identity':
+            x = x
+        elif self.pool == 'gap':
+            x = torch.mean(x, dim=1)
+        elif self.pool == 'lap':
+            x = rearrange(x, 'n (t p) d -> n t p d', t = self.t_step, p = self.num_patches)
+            x = torch.mean(x, dim=2)
+            x = rearrange(x, 'n t d -> n (t d)')
         
         return x
     

@@ -58,26 +58,7 @@ class MAETrainer(BaseTrainer):
         return CosineAnnealingWarmupRestarts(optimizer=optimizer,
                                              first_cycle_steps=num_epochs,
                                              **scheduler_cfg)
-    
-    def get_model_input(self, obs, act, done):
-        # reshape obs for augmentation
-        obs = rearrange(obs, 'n t s c h w -> (n t) (s c) h w')
-        obs = obs.float() / 255.0
-        
-        # perform augmentation if needed
-        aug_obs = self.aug_func(obs)
-        aug_obs = rearrange(aug_obs, '(n t) c h w -> n t c h w', n=self.cfg.batch_size, t=self.cfg.t_step) 
-        patch = rearrange(aug_obs, 'n t c (h p1) (w p2) -> n (t h w) (p1 p2 c)', 
-                          p1 = self.cfg.patch_size[0], p2 = self.cfg.patch_size[1])        
-        
-        # construct input data for vit
-        x = {
-            'patch': patch,
-            'act': act,
-            'done': done,
-        }
-        return x
-    
+ 
     def get_patch_mask(self):
         # construct mask data for vit-encoder
         video_shape = (self.cfg.batch_size, self.cfg.t_step, self.cfg.num_patches) 
