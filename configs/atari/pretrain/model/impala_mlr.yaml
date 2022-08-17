@@ -10,11 +10,14 @@ head:
     type: mlr
     patch_size: [14,14]
     action_size: None
+    embedding_output_dim: 3136
+    projection_dim: 256
     latent_decoder_depth: 2
     latent_decoder_heads: 8
     dropout: 0.0
     hid_features: 256
     out_features: 256
-    t_step: 16
+    emb_dropout: 0.0
+    t_step: 8
 policy:
     type: None
