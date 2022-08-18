@@ -40,6 +40,7 @@ class VIT(BaseBackbone):
         self.num_patches = num_patches
         self.enc_dim = enc_dim
         
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, enc_dim))
         self.patch_embed = nn.Linear(patch_dim, enc_dim)
 
         self.spatial_embed = nn.Parameter(torch.randn(1, num_patches, enc_dim), requires_grad=False)
@@ -52,7 +53,9 @@ class VIT(BaseBackbone):
                                    mlp_dim=enc_mlp_dim, 
                                    dropout=dropout)
         self.out_norm = nn.LayerNorm(enc_dim)        
-        assert pool in {'identity', 'gap', 'lap'}, 'currently, pool must be mean (mean pooling)'
+        self.act_pred = nn.Linear(enc_dim, action_size, bias=True)
+        
+        assert pool in {'identity', 'cls_pool', 'cls_concat'}
         self.pool = pool
         self._output_dim = enc_dim
         self._initialize_weights()
@@ -70,6 +73,9 @@ class VIT(BaseBackbone):
         enc_temporal_embed = get_1d_sincos_pos_embed_from_grid(D, np.arange(int(T)))
         self.temporal_embed.copy_(torch.from_numpy(enc_temporal_embed).float().unsqueeze(0))
         self.temporal_embed.requires_grad = True
+        
+        # timm's trunc_normal_(std=.02) is effectively normal_(std=0.02) as cutoff is too big (2.)
+        torch.nn.init.normal_(self.cls_token, std=.02)
         
         # initialize nn.Linear and nn.LayerNorm
         self.apply(self._init_weights)
@@ -96,7 +102,7 @@ class VIT(BaseBackbone):
             act_mask
             act_ids_keep
             act_ids_restore
-        [return] x: (N, L, D) (if use_action: L=T*(P+1)-1 else: L=T*P)
+        [return] x: (N, T*(P+1), D) (+1 for cls)
         """
         if len(x.shape) == 4:
             x = rearrange(x, 'n t (h p1) (w p2) -> n (t h w) (p1 p2)', 
@@ -122,6 +128,11 @@ class VIT(BaseBackbone):
             x = rearrange(x, 'n (t p) d -> n t p d', t = self.t_step, p = self.num_patches)
             x = get_3d_masked_input(x, ids_keep, mask_type)
             
+        # concatenate [cls] token
+        cls_tokens = self.cls_token.repeat(x.shape[0], self.t_step, 1) 
+        cls_tokens = cls_tokens + self.temporal_embed
+        x = torch.cat([cls_tokens, x], dim=1)
+            
         # apply Transformer blocks
         x = self.emb_dropout(x)
         x = self.encoder(x)
@@ -130,12 +141,24 @@ class VIT(BaseBackbone):
         # pooling
         if self.pool == 'identity':
             x = x
-        elif self.pool == 'gap':
+        
+        elif self.pool == 'cls_pool':
+            x = x[:,:self.t_step,:]
             x = torch.mean(x, dim=1)
-        elif self.pool == 'lap':
-            x = rearrange(x, 'n (t p) d -> n t p d', t = self.t_step, p = self.num_patches)
-            x = torch.mean(x, dim=2)
+            
+        elif self.pool == 'cls_concat':
+            x = x[:,:self.t_step,:]
             x = rearrange(x, 'n t d -> n (t d)')
         
         return x
+    
+    def predict_act(self, x):
+        """
+        [param] x: (N, T*(P+1), D) (+1 for cls)
+        """
+        cls_tokens = x[:,:self.t_step,:]
+        x = self.act_pred(cls_tokens)
+        
+        return x
+        
     

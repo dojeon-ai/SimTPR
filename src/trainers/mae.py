@@ -76,26 +76,6 @@ class MAETrainer(BaseTrainer):
             'patch_ids_restore': patch_ids_restore,
         }
         return patch_mask_dict
-    
-    def get_act_mask(self):
-        # construct mask data for vit-encoder
-        act_shape = (self.cfg.batch_size, self.cfg.t_step-1) 
-        if type(self.cfg.act_mask_ratio) == str:
-            act_mask_ratio = float(Fraction(self.cfg.act_mask_ratio))
-        
-        act_ids_keep, act_mask, act_ids_restore = get_random_1d_mask(act_shape, act_mask_ratio)
-        
-        # to device
-        act_ids_keep = act_ids_keep.to(self.device)
-        act_mask = act_mask.to(self.device)
-        act_ids_restore = act_ids_restore.to(self.device)
-        
-        act_mask_dict = {
-            'act_mask': act_mask,
-            'act_ids_keep': act_ids_keep,
-            'act_ids_restore': act_ids_restore,
-        }
-        return act_mask_dict
 
     def compute_loss(self, obs, act, done):        
         # perform augmentation if needed
@@ -106,7 +86,7 @@ class MAETrainer(BaseTrainer):
                 
         # done-mask
         done_mask = torch.zeros((done.shape[0], self.cfg.t_step), device=done.device)
-        done = done.float()
+        done = done[:, :-1].float()
         done_idx = torch.nonzero(done==1)
 
         # done is masked in reverse-order is required to keep consistency with evaluation stage.
@@ -130,8 +110,7 @@ class MAETrainer(BaseTrainer):
             
             # predict masked patches
             x = self.model.backbone(x, patch_mask_dict=patch_mask_dict)
-            patch_pred, _ = self.model.head(x, act, done, 
-                                         use_action=False, patch_mask_dict=patch_mask_dict)
+            patch_pred = self.model.head(x, patch_mask_dict=patch_mask_dict)
 
             # repeat for patches
             patch_mask = torch.repeat_interleave(done_mask, repeats=self.cfg.num_patches, dim=1)
@@ -153,18 +132,14 @@ class MAETrainer(BaseTrainer):
         ##################
         # act loss
         elif self.cfg.loss_type == 'act':
-            # get act mask
-            act_mask_dict = self.get_act_mask()
-            
             # predict masked patches
             x = self.model.backbone(x)
-            _, act_pred = self.model.head(x, act, done, 
-                                         use_action=True, act_mask_dict=act_mask_dict)
+            act_pred = self.model.backbone.predict_act(x)
             
-            # do not reconstruct actions when done_mask=True
-            act_mask = act_mask_dict['act_mask'] * (1-done_mask[:, :-1])
+            # do not reconstruct actions when done_mask=True            
+            act_mask = (1-done_mask)
             
-            # loss
+            # loss            
             act_pred = rearrange(act_pred, 'n t d -> (n t) d')
             act = rearrange(act, 'n t -> (n t)')
             act_mask = rearrange(act_mask, 'n t -> (n t)')
@@ -182,7 +157,6 @@ class MAETrainer(BaseTrainer):
             
         return loss, log_data
         
-
     def train(self):
         self.model.train()
         loss, t = 0, 0
@@ -191,8 +165,8 @@ class MAETrainer(BaseTrainer):
                 # forward
                 obs = batch.observation.to(self.device)
                 obs = rearrange(obs, 'n t s c h w -> n t (s c) h w') / 255.0
-                act = batch.action.to(self.device)[:, :-1]
-                done = batch.done.to(self.device)[:, :-1]
+                act = batch.action.to(self.device)
+                done = batch.done.to(self.device)
                 loss, log_data = self.compute_loss(obs, act, done)
                 
                 # backward
@@ -203,7 +177,8 @@ class MAETrainer(BaseTrainer):
 
                 # evaluation
                 if t % self.cfg.eval_every == 0:
-                    self.evaluate(obs, act, done)
+                    if self.cfg.loss_type == 'patch':
+                        self.visualize_mae(obs, act, done)
                     self.model.train()
                     
                 # log
@@ -217,15 +192,13 @@ class MAETrainer(BaseTrainer):
                 self.logger.save_state_dict(model=self.model, epoch=e)
 
             self.lr_scheduler.step()
-
-            
-    def evaluate(self, obs, act, done):
+  
+    def visualize_mae(self, obs, act, done):
         self.model.eval()
         with torch.no_grad():
             patch_mask_dict = self.get_patch_mask()  
             x = self.model.backbone(obs, patch_mask_dict=patch_mask_dict)
-            patch_pred, _ = self.model.head(x, act, done.float(), 
-                                         use_action=False, patch_mask_dict=patch_mask_dict)
+            patch_pred = self.model.head(x, patch_mask_dict=patch_mask_dict)
             patch = rearrange(obs, 'n t c (h p1) (w p2) -> n (t h w) (p1 p2 c)', 
                           p1 = self.cfg.patch_size[0], p2 = self.cfg.patch_size[1])
         
@@ -253,3 +226,4 @@ class MAETrainer(BaseTrainer):
                    'masked_video': wandb.Image(masked_video),
                    'pred_video': wandb.Image(pred_video)
                   }, step=self.logger.step)
+        
