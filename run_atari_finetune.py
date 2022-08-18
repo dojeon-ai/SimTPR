@@ -37,7 +37,8 @@ if __name__ == '__main__':
     # mode
     mode = args.pop('mode')
     if mode == 'test':
-        games = ['up_n_down', 'seaquest', 'pong', 'qbert']
+        games = ['alien', 'assault', 'breakout', 'frostbite', 
+                  'kangaroo', 'ms_pacman', 'pong', 'qbert']
 
     # create configurations for child run
     experiments = []

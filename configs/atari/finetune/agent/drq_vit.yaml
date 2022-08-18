@@ -37,7 +37,7 @@ batch_size: 32
 updates_per_step: 2
 update_freq: 1
 target_update_freq: 1
-clip_grad_norm: 10
+clip_grad_norm: 1.0
 min_buffer_size: 2000
 
 # logging

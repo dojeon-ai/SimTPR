@@ -65,7 +65,7 @@ def run(args):
     if logger.use_pretrained_model:
         pretrained_model_path = logger.get_pretrained_model_path()
         state_dict = logger.load_state_dict(pretrained_model_path)
-        model.load_encoder(state_dict)
+        model.load_backbone(state_dict, head=False)
     
     # trainer
     trainer = build_trainer(cfg=cfg.trainer,
