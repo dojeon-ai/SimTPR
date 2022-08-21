@@ -18,7 +18,7 @@ class Model(nn.Module):
         x = self.policy(x)
         return x
 
-    def load_backbone(self, state_dict, head=True):
+    def load_backbone(self, state_dict, head=False):
         _pretrained_state_dict = state_dict['model_state_dict']
         pretrained_state_dict = {}
         for name, param in _pretrained_state_dict.items():

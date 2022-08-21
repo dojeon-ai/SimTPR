@@ -73,6 +73,7 @@ def run(args):
                             device=device,
                             logger=logger,
                             model=model)
+    
     # train
     trainer.train()
     wandb.finish()

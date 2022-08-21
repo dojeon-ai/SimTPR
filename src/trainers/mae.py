@@ -41,7 +41,6 @@ class MAETrainer(BaseTrainer):
         if cfg.pretrain_type == 'freeze':
             for param in self.model.backbone.encoder.parameters():
                 param.requires_grad = False
-            print('hi')
         
     def _build_optimizer(self, optimizer_cfg):
         optimizer_type = optimizer_cfg.pop('type')
@@ -80,8 +79,13 @@ class MAETrainer(BaseTrainer):
     def compute_loss(self, obs, act, done):        
         # perform augmentation if needed
         x = rearrange(obs, 'n t c h w -> n (t c) h w')
+        
         with torch.no_grad():
-            x = self.aug_func(x)
+            aug_mask = torch.rand(obs.shape[0], device=obs.device) >= self.cfg.aug_prob
+            aug_mask = rearrange(aug_mask, 'n -> n 1 1 1').float()
+            aug_x = self.aug_func(x)
+            x = aug_mask * x + (1-aug_mask) * aug_x
+            
         x = rearrange(x, 'n (t c) h w -> n t c h w', t=self.cfg.t_step) 
                 
         # done-mask

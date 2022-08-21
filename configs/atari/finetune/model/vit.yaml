@@ -5,7 +5,7 @@ backbone:
     action_size: None
     t_step: 8
     patch_size: [14, 14]
-    pool: 'gap'
+    pool: 'cls_concat'
     enc_depth: 8
     enc_dim: 128
     enc_mlp_dim: 512
@@ -13,22 +13,11 @@ backbone:
     emb_dropout: 0.0
     dropout: 0.0
 head:
-    type: 'vit_head'
-    obs_shape: None
-    action_size: None
-    t_step: 8
-    patch_size: [14, 14]
-    enc_dim: 128    
-    dec_depth: 2
-    dec_dim: 128
-    dec_mlp_dim: 512
-    dec_heads: 2
-    emb_dropout: 0.0
-    dropout: 0.0
+    type: None
 policy:
     type: 'rainbow'
-    in_features: 128
-    hid_features: 128
+    in_features: 1024
+    hid_features: 256
     action_size: None # not pre-defined
     num_atoms: 51
     noisy_std: 0.5

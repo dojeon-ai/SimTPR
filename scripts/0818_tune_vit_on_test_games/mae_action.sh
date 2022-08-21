@@ -9,6 +9,6 @@ python run_atari_pretrain.py \
     --num_devices 8 \
     --num_exp_per_device 1 \
     --use_artifact True \
-    --artifact_name 'draftrec/atari_pretrain/test_mae:v0' \
+    --artifact_name 'draftrec/atari_pretrain/mae_vit_s:v0' \
     --model_path '0/100/model.pth' \
     --overrides trainer.pretrain_type='naive'

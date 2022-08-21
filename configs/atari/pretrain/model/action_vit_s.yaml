@@ -6,10 +6,10 @@ backbone:
     t_step: None
     patch_size: [14, 14]
     pool: 'identity'
-    enc_depth: 8
-    enc_dim: 128
-    enc_mlp_dim: 512
-    enc_heads: 2
+    enc_depth: 4
+    enc_dim: 256
+    enc_mlp_dim: 1024
+    enc_heads: 4
     emb_dropout: 0.0
     dropout: 0.0
 head:
