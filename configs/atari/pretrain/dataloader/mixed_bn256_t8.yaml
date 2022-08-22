@@ -5,8 +5,8 @@ data_path: '/data/private/video_rl/data/atari'
 tmp_data_path: '/data/private/video_rl/data/atari'
 game: 'Pong' # requires camel case
 checkpoints: [1, 25, 50]
-frames: 1
-t_step: 8
+frames: 1 # stack num
+t_step: 8 # t_step
 max_size: 1000000 # 1e6
 dataset_on_gpu: False #True
 dataset_on_disk: True #False
