@@ -229,3 +229,37 @@ class RAINBOW(BaseAgent):
                 else:
                     obs = next_obs
         self.logger.write_log(mode='eval')
+        
+    def visualize_attention_map(self):
+        self.model.eval()
+        frames = []
+        attention_maps = []
+        obs = self.eval_env.reset()
+        while True:
+            # encode last observation to torch.tensor()
+            obs_tensor = self.buffer.encode_obs(obs, prediction=True)
+
+            import pdb
+            pdb.set_trace()
+            
+            q_value = (self.model(obs) * self.support.reshape(1,1,-1)).sum(-1)
+            action = torch.argmax(q_value, 1).item()
+            
+            
+            
+            # get action from the model
+            with torch.no_grad():
+                action = self.predict_greedy(obs_tensor, eps=0.001)
+
+            # step
+            next_obs, reward, done, info = self.eval_env.step(action)
+
+            # logger
+            self.logger.step(obs, reward, done, info, mode='eval')
+
+            # move on
+            if info.traj_done:
+                break
+            else:
+                obs = next_obs
+        

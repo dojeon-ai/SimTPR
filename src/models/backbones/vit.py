@@ -90,7 +90,7 @@ class VIT(BaseBackbone):
             nn.init.constant_(m.bias, 0)
             nn.init.constant_(m.weight, 1.0)            
     
-    def forward(self, x, patch_mask_dict=None):
+    def forward(self, x, patch_mask_dict=None, get_attn_map=False):
         """
         [param] x: (N, T, C, H, W)
         [param] patch_mask_dict
@@ -135,7 +135,7 @@ class VIT(BaseBackbone):
             
         # apply Transformer blocks
         x = self.emb_dropout(x)
-        x = self.encoder(x)
+        x, attn_maps = self.encoder(x)
         x = self.out_norm(x)
 
         # pooling
@@ -150,8 +150,11 @@ class VIT(BaseBackbone):
             x = x[:,:self.t_step,:]
             x = rearrange(x, 'n t d -> n (t d)')
         
-        return x
-    
+        if get_attn_map:
+            return x, attn_maps
+        else:
+            return x
+
     def predict_act(self, x):
         """
         [param] x: (N, T*(P+1), D) (+1 for cls)

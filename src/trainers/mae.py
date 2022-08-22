@@ -1,6 +1,7 @@
 from .base import BaseTrainer
 from src.common.train_utils import LinearScheduler, CosineAnnealingWarmupRestarts
 from src.common.train_utils import get_random_1d_mask, get_random_3d_mask
+from src.common.vis_utils import rollout_attn_maps
 import wandb
 import torch
 import torch.nn as nn
@@ -183,6 +184,8 @@ class MAETrainer(BaseTrainer):
                 if t % self.cfg.eval_every == 0:
                     if self.cfg.loss_type == 'patch':
                         self.visualize_mae(obs, act, done)
+                    elif self.cfg.loss_type == 'act':
+                        self.visualize_act(obs, act, done)
                     self.model.train()
                     
                 # log
@@ -225,9 +228,46 @@ class MAETrainer(BaseTrainer):
         pred_video = (depatchify(patch_pred)[0]).to(float)
         pred_video = torch.where(pred_video>=1.0, 1.0, pred_video)
         pred_video = torch.where(pred_video<0.0, 0.0, pred_video)
-
+        
         wandb.log({'target_video': wandb.Image(target_video),
                    'masked_video': wandb.Image(masked_video),
                    'pred_video': wandb.Image(pred_video)
                   }, step=self.logger.step)
+        
+        
+    def visualize_act(self, obs, act, done):
+        self.model.eval()
+        with torch.no_grad():
+            x, attn_maps = self.model.backbone(obs, get_attn_map=True)
+            act_pred = self.model.backbone.predict_act(x)
+            
+        # N, T*(P+1), T*(P+1)
+        attn_maps = rollout_attn_maps(attn_maps)
+        
+        # attention from the last [cls] token
+        attn_map = attn_maps[:, self.cfg.t_step-1, self.cfg.t_step:]
+        
+        # re-normalize based on max-masking
+        max_attn_weight = torch.max(attn_map, 1)[0]
+        attn_map = attn_map / max_attn_weight.unsqueeze(-1)
+
+        # mask-out patches based on the attn_map
+        attn_map = rearrange(attn_map, 'n (t p1 p2) ->n t p1 p2', t=self.cfg.t_step, p1=int(self.cfg.num_patches**0.5))
+        patch = rearrange(obs, 'n t c (h p1) (w p2) -> n t h w (p1 p2 c)', 
+                          p1 = self.cfg.patch_size[0], p2 = self.cfg.patch_size[1])
+        attn_patch = patch * attn_map.unsqueeze(-1)
+        attn_video = rearrange(attn_patch, 'n t h w (p1 p2 c) -> n t c (h p1) (w p2)',
+                               p1 = self.cfg.patch_size[0], 
+                               p2 = self.cfg.patch_size[1])
+        
+        # save video
+        original_video = (obs[0]).detach()
+        attn_map = attn_map[0].unsqueeze(1).detach()
+        attended_video = attn_video[0].detach()       
+        
+        wandb.log({'original_video': wandb.Image(original_video),
+                   'attn_map': wandb.Image(attn_map),
+                   'attended_video': wandb.Image(attended_video)
+                  }, step=self.logger.step)
+        
         
