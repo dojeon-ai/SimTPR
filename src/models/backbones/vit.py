@@ -55,7 +55,7 @@ class VIT(BaseBackbone):
         self.out_norm = nn.LayerNorm(enc_dim)        
         self.act_pred = nn.Linear(enc_dim, action_size, bias=True)
         
-        assert pool in {'identity', 'cls_pool', 'cls_concat'}
+        assert pool in {'identity', 'cls_pool', 'cls_concat', 'cls_last'}
         self.pool = pool
         self._output_dim = enc_dim
         self._initialize_weights()
@@ -148,6 +148,10 @@ class VIT(BaseBackbone):
             
         elif self.pool == 'cls_concat':
             x = x[:,:self.t_step,:]
+            x = rearrange(x, 'n t d -> n (t d)')
+            
+        elif self.pool == 'cls_last':
+            x = x[:,self.t_step-1:self.t_step,:]
             x = rearrange(x, 'n t d -> n (t d)')
         
         if get_attn_map:

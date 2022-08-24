@@ -58,7 +58,7 @@ def run(args):
     # load-pretrained
     if logger.use_pretrained_model:
         pretrained_model_path = logger.get_pretrained_model_path()
-        state_dict = logger.load_state_dict(pretrained_model_path)
+        state_dict = logger.load_state_dict(pretrained_model_path, device)
         model.load_backbone(state_dict)
 
     # agent

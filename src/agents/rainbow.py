@@ -7,6 +7,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 import random
 import copy
+import wandb
 import tqdm
 import numpy as np
 from collections import deque
@@ -198,7 +199,10 @@ class RAINBOW(BaseAgent):
             if t % self.cfg.eval_every == 0:
                 #self.logger.save_state_dict(model=self.model)
                 self.evaluate()
-                self.visualize_attention_map()
+                
+            if t % self.cfg.vis_every == 0:
+                if self.model.backbone.name == 'vit':
+                    self.visualize_attention_map()
 
             # move on
             # should not be done (cannot collect the return of trajectory)
@@ -234,72 +238,87 @@ class RAINBOW(BaseAgent):
         
     def visualize_attention_map(self):
         self.model.eval()
-        frames = []
-        attention_maps = []
+        frame_list = []
+        attn_map_list = []
+        attn_frame_list = []
         obs = self.eval_env.reset()
-        while True:
-            # encode last observation to torch.tensor()
-            obs_tensor = self.buffer.encode_obs(obs, prediction=True)
-            z, attn_maps = self.model.backbone(obs_tensor, get_attn_map=True)
-            
-            p = random.random()
-            if p < 0.01:
-                action = random.randint(0, self.cfg.action_size-1)
-            else:
-                q_value = (self.model.policy(z)* self.support.reshape(1,1,-1)).sum(-1)
-                action = torch.argmax(q_value, 1).item()
-            
-            # rollout attention map
-            attn_maps = rollout_attn_maps(attn_maps)
-            
-            # attention from the last [cls] token
-            attn_map = attn_maps[:, self.model.backbone.t_step-1, self.model.backbone.t_step:]
-        
-            # average over time-step for visibility
-            attn_map = rearrange(attn_map, 'n (t p1 p2) ->n t p1 p2', 
-                                 t=self.model.backbone.t_step, 
-                                 p1=int(self.model.backbone.num_patches**0.5))
-            attn_map = torch.mean(attn_map, 1)
-        
-            # re-normalize based on max-masking
-            attn_map = rearrange(attn_map, 'n p1 p2 ->n (p1 p2)', 
-                                 p1=int(self.model.backbone.num_patches**0.5))
-            max_attn_weight = torch.max(attn_map, 1)[0]
-            attn_map = attn_map / max_attn_weight.unsqueeze(-1)
-            attn_map = rearrange(attn_map, 'n (p1 p2) ->n p1 p2', 
-                                 p1=int(self.model.backbone.num_patches**0.5))
-            
-            # mask-out patches based on the attn_map
-            frame = obs_tensor
-            
-            
-            
-            
-            patch = rearrange(obs_tensor, 'n t (h p1) (w p2) -> n t h w (p1 p2)', 
-                              p1 = self.cfg.patch_size[0], 
-                              p2 = self.cfg.patch_size[1])
-            
-            attn_patch = patch * attn_map.unsqueeze(-1)
-            attn_video = rearrange(attn_patch, 'n t h w (p1 p2) -> n t (h p1) (w p2)',
-                                   p1 = self.cfg.patch_size[0], 
-                                   p2 = self.cfg.patch_size[1])
-            
-            
-            
-            frames.append(obs_tensor[:,-1])
-            
-            import pdb
-            pdb.set_trace()
+        with torch.no_grad():
+            while True:
+                # encode last observation to torch.tensor()
+                obs_tensor = self.buffer.encode_obs(obs, prediction=True)
 
-            # step
-            next_obs, reward, done, info = self.eval_env.step(action)
+                ###################
+                # attention-map
+                # get attention map
+                z, attn_maps = self.model.backbone(obs_tensor, get_attn_map=True)
 
-            # logger
-            self.logger.step(obs, reward, done, info, mode='eval')
+                # rollout attention map
+                attn_maps = rollout_attn_maps(attn_maps)
 
-            # move on
-            if info.traj_done:
-                break
-            else:
-                obs = next_obs
+                # attention from the last [cls] token
+                attn_map = attn_maps[:, self.model.backbone.t_step-1, self.model.backbone.t_step:]
+
+                # average over time-step for visibility
+                attn_map = rearrange(attn_map, 'n (t p1 p2) ->n t p1 p2', 
+                                     t=self.model.backbone.t_step, 
+                                     p1=int(self.model.backbone.num_patches**0.5))
+                attn_map = attn_map[:, -1]
+                #attn_map = torch.mean(attn_map, 1)
+
+                # re-normalize based on max-masking
+                attn_map = rearrange(attn_map, 'n p1 p2 ->n (p1 p2)', 
+                                     p1=int(self.model.backbone.num_patches**0.5))
+                max_attn_weight = torch.max(attn_map, 1)[0]
+                attn_map = attn_map / max_attn_weight.unsqueeze(-1)
+                attn_map = rearrange(attn_map, 'n (p1 p2) ->1 n p1 p2', 
+                                     p1=int(self.model.backbone.num_patches**0.5))
+
+                # mask-out patches based on the attn_map
+                frame = obs_tensor[:,-1:]
+                patch = rearrange(frame, 'n t (h p1) (w p2) -> n t h w (p1 p2)', 
+                                  p1 = self.model.backbone.patch_size[0], 
+                                  p2 = self.model.backbone.patch_size[1])
+
+                attn_patch = patch * attn_map.unsqueeze(-1)
+                attn_frame = rearrange(attn_patch, 'n t h w (p1 p2) -> n t (h p1) (w p2)',
+                                       p1 = self.model.backbone.patch_size[0], 
+                                       p2 = self.model.backbone.patch_size[1])
+
+                # append to list
+                frame_list.append(frame)
+                attn_map_list.append(attn_map)
+                attn_frame_list.append(attn_frame)
+
+                ###################
+                # step
+                # get action from the model
+                with torch.no_grad():
+                    action = self.predict_greedy(obs_tensor, eps=0.001)
+
+                # step
+                next_obs, reward, done, info = self.eval_env.step(action)
+
+                # logger
+                self.logger.step(obs, reward, done, info, mode='eval')
+
+                # move on
+                if info.traj_done:
+                    break
+                else:
+                    obs = next_obs
+                
+        vis_len = 16
+        if len(frame_list) < vis_len:
+            return
         
+        else:
+            start_idx = random.randint(0, len(frame_list)-vis_len)
+            end_idx = start_idx + vis_len
+            frames = torch.stack(frame_list)[start_idx:end_idx].squeeze(1)
+            attn_maps = torch.stack(attn_map_list)[start_idx:end_idx].squeeze(1)
+            attn_frames = torch.stack(attn_frame_list)[start_idx:end_idx].squeeze(1)
+                
+            wandb.log({'original_video': wandb.Image(frames),
+                       'attn_map': wandb.Image(attn_maps),
+                       'attended_video': wandb.Image(attn_frames)
+                  }, step=self.logger.timestep)

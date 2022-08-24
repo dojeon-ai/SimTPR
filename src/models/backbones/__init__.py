@@ -3,7 +3,8 @@ from .nature import Nature
 from .de_nature import DENature
 from .impala import Impala
 from .vit import VIT
+from .vit_joint import VITJoint
 
 __all__ = [
-    'BaseBackbone', 'Nature', 'DENature', 'Impala', 'VIT'
+    'BaseBackbone', 'Nature', 'DENature', 'Impala', 'VIT', 'VITJoint'
 ]

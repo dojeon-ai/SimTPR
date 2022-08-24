@@ -64,7 +64,7 @@ def run(args):
     # load-pretrained
     if logger.use_pretrained_model:
         pretrained_model_path = logger.get_pretrained_model_path()
-        state_dict = logger.load_state_dict(pretrained_model_path)
+        state_dict = logger.load_state_dict(pretrained_model_path, device)
         model.load_backbone(state_dict, head=False)
     
     # trainer
@@ -83,7 +83,7 @@ def run(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(allow_abbrev=False)
     parser.add_argument('--config_dir',  type=str,    default='atari/pretrain')
-    parser.add_argument('--config_name', type=str,    default='mixed_mae_vit_s') 
+    parser.add_argument('--config_name', type=str,    default='mixed_mae_joint_vit') 
     parser.add_argument('--overrides',   action='append', default=[])
     args = parser.parse_args()
 

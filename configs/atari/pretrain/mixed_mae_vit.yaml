@@ -2,7 +2,7 @@
 project_name: 'atari_pretrain'
 entity: 'draftrec'
 group_name: 'test'
-exp_name: 'mae_vit-s'
+exp_name: 'mae'
 device: cuda:0
 seed: 0
 
@@ -15,5 +15,5 @@ defaults:
 - _self_
 - dataloader: mixed_bn256_t8
 - env: atari
-- trainer: mae_vit
-- model: mae_vit_s
+- trainer: mae
+- model: vit_mae

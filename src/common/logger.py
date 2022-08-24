@@ -52,8 +52,8 @@ class WandbTrainerLogger(object):
         torch.save(state_dict, path)
         self.artifacts[path] = name
     
-    def load_state_dict(self, path):
-        return torch.load(path)
+    def load_state_dict(self, path, device):
+        return torch.load(path, map_location=device)
 
     def get_artifacts(self):
         return self.artifacts
@@ -146,8 +146,8 @@ class WandbAgentLogger(object):
         torch.save(state_dict, path)
         self.artifacts[path] = name
     
-    def load_state_dict(self, path):
-        return torch.load(path)
+    def load_state_dict(self, path, device):
+        return torch.load(path, device)
 
     def get_artifacts(self):
         return self.artifacts
