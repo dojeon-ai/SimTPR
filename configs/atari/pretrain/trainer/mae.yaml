@@ -27,15 +27,15 @@ scheduler:
     cycle_mult: 1.0
     max_lr: 0.003
     min_lr: 0.0003
-    warmup_steps: 10
+    warmup_steps: 30
     gamma: 1.0
 
 # updates
-num_epochs: 100
+num_epochs: 300
 batch_size: 256
 clip_grad_norm: 1.0
 
 # logging
-log_every: 100
-eval_every: 2000
-save_every: 50
+log_every: 300
+eval_every: 3000
+save_every: 100
