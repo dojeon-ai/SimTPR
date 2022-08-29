@@ -1,0 +1,18 @@
+# OT-Rainbow
+project_name: 'atari_finetune'
+entity: 'draftrec'
+group_name: 'test'
+exp_name: 'drq_vit'
+device: cuda:0
+seed: 0
+
+# pretrained-backbone
+use_artifact: False
+artifact_name: ''
+model_path: ''
+
+defaults:
+- _self_
+- agent: drq_vit
+- env: atari_t8
+- model: vit

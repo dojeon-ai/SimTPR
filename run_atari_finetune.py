@@ -22,7 +22,7 @@ if __name__ == '__main__':
     parser.add_argument('--use_artifact', type=bool,    default=False)
     parser.add_argument('--artifact_name',type=str,     default='') # simclr
     parser.add_argument('--model_path',   type=str,     default='') # 0/8/model.pth
-    parser.add_argument('--num_seeds',     type=int,    default=5)
+    parser.add_argument('--num_seeds',     type=int,    default=1)
     parser.add_argument('--num_devices',   type=int,    default=4)
     parser.add_argument('--num_exp_per_device',  type=int,  default=3)
     parser.add_argument('--overrides',    action='append',  default=[]) 
@@ -37,7 +37,8 @@ if __name__ == '__main__':
     # mode
     mode = args.pop('mode')
     if mode == 'test':
-        games = ['alien', 'breakout', 'ms_pacman', 'qbert']
+        games = ['alien', 'assault', 'breakout', 'frostbite', 
+                  'kangaroo', 'ms_pacman', 'pong', 'qbert']
 
     # create configurations for child run
     experiments = []
@@ -72,9 +73,18 @@ if __name__ == '__main__':
     # maxtasksperchild=None -> no.of workers = pool size
     # https://docs.python.org/3.5/library/multiprocessing.html#contexts-and-start-methods
     # mp.set_start_method('spawn') 
-    pool = Pool(pool_size, maxtasksperchild=1)
-    results = pool.map(run, experiments, chunksize=1)
-    pool.close()
+    def chunks(lst, n):
+        """Yield successive n-sized chunks from lst."""
+        for i in range(0, len(lst), n):
+            yield lst[i:i + n]
+    
+    results = []
+    for exps in list(chunks(experiments, pool_size)):
+        pool = Pool(pool_size, maxtasksperchild=1)
+        results_per_pool = pool.map(run, exps, chunksize=1)
+        pool.close()
+        pool.join()
+        results += results_per_pool
 
     # get metrics & artifacts from each logger
     scores_per_game, norm_scores_per_game = {}, {}

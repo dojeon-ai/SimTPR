@@ -18,6 +18,9 @@ if __name__ == '__main__':
     parser.add_argument('--mode',         type=str,    choices=['test','full'])
     parser.add_argument('--config_dir',   type=str,    default='atari/pretrain')
     parser.add_argument('--config_name',  type=str,    default='mixed_curl_impala') 
+    parser.add_argument('--use_artifact', type=bool,    default=False)
+    parser.add_argument('--artifact_name',type=str,     default='') # simclr
+    parser.add_argument('--model_path',   type=str,     default='') # 0/8/model.pth
     parser.add_argument('--num_seeds',     type=int,   default=1)
     parser.add_argument('--num_devices',   type=int,   default=4)
     parser.add_argument('--num_exp_per_device',  type=int,  default=1)
@@ -33,13 +36,8 @@ if __name__ == '__main__':
     # mode
     mode = args.pop('mode')
     if mode == 'test':
-        _games = ['alien', 'breakout', 'ms_pacman', 'qbert']
-
-    # snake case to camel case
-    games = []
-    for _game in _games:
-        game = ''.join(word.title() for word in _game.split('_'))
-        games.append(game)
+        games = ['alien', 'assault', 'breakout', 'frostbite', 
+                  'kangaroo', 'ms_pacman', 'pong', 'qbert']
 
     # create configurations for child run
     experiments = []
@@ -49,11 +47,23 @@ if __name__ == '__main__':
         group_name = exp.pop('group_name')
         exp_name = exp.pop('exp_name')
         device_id = int(device_id % num_devices)
+        camel_game = ''.join(word.title() for word in str(game).split('_'))
+        
         exp['overrides'].append('group_name=' + group_name)
         exp['overrides'].append('exp_name=' + exp_name)
         exp['overrides'].append('seed=' + str(seed))
-        exp['overrides'].append('dataloader.game=' + str(game))
+        exp['overrides'].append('dataloader.game=' + str(camel_game))
+        exp['overrides'].append('env.game=' + str(game))
         exp['overrides'].append('device=' + 'cuda:' + str(device_id))
+        
+        # start from pretrain if use artifact
+        use_artifact = exp.pop('use_artifact')
+        artifact_name = exp.pop('artifact_name')
+        model_path = exp.pop('model_path')
+        if use_artifact:
+            exp['overrides'].append('use_artifact=True')
+            exp['overrides'].append('artifact_name=' + artifact_name)
+            exp['overrides'].append('model_path=' + camel_game + '/' + model_path)
 
         experiments.append(exp)
         device_id += 1

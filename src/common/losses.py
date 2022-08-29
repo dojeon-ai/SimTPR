@@ -154,6 +154,7 @@ class TemporalSimilarityLoss(nn.Module):
         self.device = device
         
     def forward(self, z, done):
+        #import pdb; pdb.set_trace()
         # [params] z: (2*N*T, D)
         # [params] done: (N, T)
         N, T = self.num_trajectory, self.t_step
