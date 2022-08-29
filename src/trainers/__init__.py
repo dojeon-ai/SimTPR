@@ -2,6 +2,7 @@ from .base import BaseTrainer
 from dotmap import DotMap
 from omegaconf import OmegaConf
 from src.common.augmentation import Augmentation
+from src.common.augmentation import RandomShiftsAug
 from src.common.utils import all_subclasses, import_all_subclasses
 import_all_subclasses(__file__, __name__, BaseTrainer)
 
@@ -20,8 +21,12 @@ def build_trainer(cfg,
     # augemntation
     if len(cfg.aug_types) == 0:
         cfg.aug_types = []
-    aug_func = Augmentation(obs_shape=cfg.obs_shape, 
-                            aug_types=cfg.aug_types)
+
+    if 'dmc_random_crop' in cfg.aug_types:
+        aug_func = RandomShiftsAug(pad=4)
+    else:
+        aug_func = Augmentation(obs_shape=cfg.obs_shape, 
+                                aug_types=cfg.aug_types)
 
     # trainer
     trainer_type = cfg.pop('type')

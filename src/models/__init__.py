@@ -1,7 +1,7 @@
 from .backbones import *  
 from .heads import * 
 from .policies import *
-from .base import Model
+from .base import DDPGModel, Model
 from omegaconf import OmegaConf
 from src.common.utils import all_subclasses
 
@@ -30,17 +30,24 @@ def build_model(cfg):
     backbone = backbone(**backbone_cfg)
     if head_type != str(None):
         head = HEADS[head_type]
+        if backbone_type == 'drqv2_encoder':
+            head_cfg['in_features'] = backbone.repr_features
         head = head(**head_cfg)
     else:
         head = None
     if policy_type != str(None):
         policy = POLICIES[policy_type]
+        if backbone_type == 'drqv2_encoder':  # DrQ-v2 implementation
+            policy_cfg['repr_features'] = backbone.repr_features 
         policy = policy(**policy_cfg)
     else:
         policy = None
 
-    model = Model(backbone = backbone,
-                  head = head,
-                  policy = policy)
-    
+    if backbone_type == 'drqv2_encoder':
+        model = DDPGModel
+    else:
+        model = Model
+
+    model = model(backbone=backbone, head=head, policy=policy)
     return model
+

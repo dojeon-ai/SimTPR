@@ -123,3 +123,6 @@ data/mujoco
 data/youtube
 artifacts
 rars
+*.mp4
+*.npz
+*.gz

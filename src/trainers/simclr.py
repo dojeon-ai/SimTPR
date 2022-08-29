@@ -87,7 +87,7 @@ class SimCLRTrainer(BaseTrainer):
         for e in range(1, self.cfg.num_epochs+1):
             for batch in tqdm.tqdm(self.dataloader):
                 log_data = {}
-                
+
                 # forward
                 obs = batch.observation.to(self.device)
                 done = batch.done.to(self.device)
@@ -117,7 +117,7 @@ class SimCLRTrainer(BaseTrainer):
 
                 # proceed
                 t += 1
-            break
+            
             if e % self.cfg.save_every == 0:
                 self.logger.save_state_dict(model=self.model, epoch=e)
 

@@ -95,11 +95,23 @@ class WandbAgentLogger(object):
         self.train_logger = AgentLogger(average_len=10)
         self.eval_logger = AgentLogger(average_len=100)
         self.timestep = 0
+
+        # BK 수정
+        if 'dmc' in self.cfg.project_name:
+            self.map_type = 'dmc'
+            self.action_repeat = cfg.env.action_repeat
+        else:
+            self.map_type = 'atari'
     
+
     def step(self, state, reward, done, info, mode='train'):
         if mode == 'train':
             self.train_logger.step(state, reward, done, info)
-            self.timestep += 1
+            # Bk 수정
+            if self.map_type == 'dmc':
+                self.timestep += 2  # env.step() 50K = DMC 100K benchmark
+            else:
+                self.timestep += 1
 
         elif mode == 'eval':
             self.eval_logger.step(state, reward, done, info)

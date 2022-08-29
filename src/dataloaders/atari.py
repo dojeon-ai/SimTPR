@@ -25,7 +25,8 @@ class DQNReplayDataset(Dataset):
                  full_action_set: bool,
                  dataset_on_gpu: bool,
                  dataset_on_disk: bool,
-                 device: str) -> None:
+                 device: str,
+                 is_dmc: str) -> None:
 
         device = torch.device(device)
         data = []
@@ -49,7 +50,7 @@ class DQNReplayDataset(Dataset):
                 del data__
                 data_ = torch.from_numpy(data___)
             
-            else:
+            else: # observation
                 new_filename = tmp_data_path + '/' + game
                 new_filename = os.path.join(new_filename, Path(os.path.basename(filename)[:-3]+".npy"))
                 try:
@@ -67,7 +68,7 @@ class DQNReplayDataset(Dataset):
                     del data__
                     data_ = np.load(new_filename) #, mmap_mode="r+")
 
-            if (filetype == 'action') and full_action_set:
+            if ((filetype == 'action') and full_action_set) and (not is_dmc):
                 action_mapping = dict(zip(data_.unique().numpy(),
                                           AtariEnv(re.sub(r'(?<!^)(?=[A-Z])', '_', game).lower()).ale.getMinimalActionSet()))
                 data_.apply_(lambda x: action_mapping[x])
@@ -114,8 +115,10 @@ class MultiDQNReplayDataset(Dataset):
                 full_action_set: bool,
                 dataset_on_gpu: bool,
                 dataset_on_disk: bool,
-                device: str) -> None:
+                device: str,
+                is_dmc: bool) -> None:
         
+        # checkpoints: [50]
         self.datasets =[DQNReplayDataset(data_path,
                         tmp_data_path,
                         game,
@@ -126,7 +129,8 @@ class MultiDQNReplayDataset(Dataset):
                         full_action_set,
                         dataset_on_gpu,
                         dataset_on_disk,
-                        device) for ckpt in checkpoints]
+                        device,
+                        is_dmc) for ckpt in checkpoints]
 
         self.num_blocks = len(self.datasets)
         self.block_len = len(self.datasets[0])
@@ -179,10 +183,17 @@ class ATARILoader(BaseLoader):
         self.device = device
         self.group_read_factor = group_read_factor
         self.shuffle_checkpoints = shuffle_checkpoints
+        if 'dmc' in self.data_path:
+            self.is_dmc = True
+        else:
+            self.is_dmc = False
 
     def get_dataloader(self):
         def collate(batch):
             frames = self.frames
+            # observation shape
+            # ATARI: (B, self.f+self.t, H=84, W=84)
+            # DMC: (B, self.f+self.t, C=3, H=84, W=84)
             observation, action, reward, done = torch.utils.data.dataloader.default_collate(batch)
             """
             # tbcfhw: standard format for ATC
@@ -196,12 +207,20 @@ class ATARILoader(BaseLoader):
             reward = torch.nan_to_num(reward).sign()  # Apparently possible, somehow.
             done = torch.einsum('bt->tb', done)[frames-1:-1].bool()
             """
-            # btfhw
-            observation = observation.unsqueeze(2).repeat(1, 1, frames, 1, 1)
+            if self.is_dmc:
+                observation = observation.unsqueeze(2).repeat(1, 1, frames, 1, 1, 1)
+            else:
+                observation = observation.unsqueeze(2).repeat(1, 1, frames, 1, 1)
             for i in range(1, frames):
                 observation[:, :, i] = observation[:, :, i].roll(-i, 1)
+            # ATARI: b, t+f, f, h, w
+            # DMC:   b, t+f, f, c, h, w
             observation = observation[:, :-frames] # do not use the last frame (just to make t=k)
-            observation = observation.unsqueeze(3)
+            # ATARI: b, t, f, h, w
+            # DMC:   b, t, f, c, h, w
+            if not self.is_dmc:
+                observation = observation.unsqueeze(3)
+            # ATARI, DMC: b, t, f, c, h, w
             action = action[:, frames-1:-1].long()
             reward = reward[:, frames-1:-1]
             reward = torch.nan_to_num(reward).sign()  # Apparently possible, somehow.
@@ -219,7 +238,8 @@ class ATARILoader(BaseLoader):
                                         self.full_action_set, 
                                         self.dataset_on_gpu, 
                                         self.dataset_on_disk,
-                                        self.device)
+                                        self.device,
+                                        self.is_dmc)
 
         if self.shuffle_checkpoints:
             data = get_from_dataloaders(dataset.datasets)
