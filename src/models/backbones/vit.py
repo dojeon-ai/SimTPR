@@ -21,7 +21,8 @@ class VIT(BaseBackbone):
                  enc_mlp_dim,
                  enc_heads, 
                  emb_dropout,
-                 dropout):
+                 dropout,
+                 renormalize):
 
         super().__init__()
         # TODO: error when frame is not 1.
@@ -54,9 +55,11 @@ class VIT(BaseBackbone):
                                    dropout=dropout)
         self.out_norm = nn.LayerNorm(enc_dim)        
         self.act_pred = nn.Linear(enc_dim, action_size, bias=True)
+        self.bc_pred = nn.Linear(enc_dim, action_size, bias=True)
         
-        assert pool in {'identity', 'cls_pool', 'cls_concat', 'cls_last'}
+        assert pool in {'identity', 'cls_pool', 'cls_concat', 'cls_last', 'act_concat'}
         self.pool = pool
+        self.renormalize = renormalize
         self._output_dim = enc_dim
         self._initialize_weights()
         
@@ -129,7 +132,7 @@ class VIT(BaseBackbone):
             x = get_3d_masked_input(x, ids_keep, mask_type)
             
         # concatenate [cls] token
-        cls_tokens = self.cls_token.repeat(x.shape[0], self.t_step, 1) 
+        cls_tokens = self.cls_token.repeat(x.shape[0], self.t_step, 1)      
         cls_tokens = cls_tokens + self.temporal_embed
         x = torch.cat([cls_tokens, x], dim=1)
             
@@ -153,6 +156,9 @@ class VIT(BaseBackbone):
         elif self.pool == 'cls_last':
             x = x[:,self.t_step-1:self.t_step,:]
             x = rearrange(x, 'n t d -> n (t d)')
+            
+        if self.renormalize:
+            x = self._renormalize(x)
         
         if get_attn_map:
             return x, attn_maps
@@ -163,8 +169,9 @@ class VIT(BaseBackbone):
         """
         [param] x: (N, T*(P+1), D) (+1 for cls)
         """
-        cls_tokens = x[:,:self.t_step,:]
-        x = self.act_pred(cls_tokens)
+        idm_act = self.act_pred(x[:, :self.t_step-1, :])
+        bc_act = self.bc_pred(x[:, self.t_step-1:self.t_step, :])
+        x = torch.cat([idm_act, bc_act], dim=1)
         
         return x
         

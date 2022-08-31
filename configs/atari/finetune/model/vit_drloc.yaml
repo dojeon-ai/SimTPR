@@ -14,7 +14,11 @@ backbone:
     dropout: 0.0
     renormalize: False
 head:
-    type: None
+    type: 'drloc'
+    in_features: 384
+    hid_features: 256
+    out_features: 3
+    sample_size: 64
 policy:
     type: 'rainbow'
     in_features: 1536

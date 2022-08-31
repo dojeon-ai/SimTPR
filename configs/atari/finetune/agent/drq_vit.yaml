@@ -1,5 +1,5 @@
 # defaults
-type: 'rainbow'
+type: 'rainbow_vit'
 num_timesteps: 100000 # 100k
 obs_shape: None
 action_size: None
@@ -39,6 +39,7 @@ update_freq: 1
 target_update_freq: 1
 clip_grad_norm: 1.0
 min_buffer_size: 2000
+drloc_lmbda: 0.0
 
 # logging
 log_every: 1000

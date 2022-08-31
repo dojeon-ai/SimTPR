@@ -61,7 +61,7 @@ def run(args):
     # model
     model = build_model(cfg.model)
     
-    # load-pretrained
+    # load-pretrained model
     if logger.use_pretrained_model:
         pretrained_model_path = logger.get_pretrained_model_path()
         state_dict = logger.load_state_dict(pretrained_model_path, device)

@@ -34,7 +34,7 @@ scheduler:
 bc_lmbda: 0.0
 num_epochs: 100
 batch_size: 256
-clip_grad_norm: 1.0
+clip_grad_norm: 0.5
 
 # logging
 log_every: 300

@@ -12,6 +12,7 @@ backbone:
     enc_heads: 4
     emb_dropout: 0.0
     dropout: 0.0
+    renormalize: False
 head:
     type: None
 policy:

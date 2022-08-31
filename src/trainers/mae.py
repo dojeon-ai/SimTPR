@@ -190,6 +190,14 @@ class MAETrainer(BaseTrainer):
                 # backward
                 self.optimizer.zero_grad()
                 loss.backward()
+                grad_norm = []
+                for p in self.model.parameters():
+                    if p.grad is not None:
+                        grad_norm.append(p.grad.detach().data.norm(2))
+                grad_norm = torch.stack(grad_norm)
+                log_data['min_grad_norm'] = torch.min(grad_norm).item()
+                log_data['mean_grad_norm'] = torch.mean(grad_norm).item()
+                log_data['max_grad_norm'] = torch.max(grad_norm).item()
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.cfg.clip_grad_norm)
                 self.optimizer.step()
 
