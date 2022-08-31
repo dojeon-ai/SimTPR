@@ -3,6 +3,7 @@ from .buffers import *
 from dotmap import DotMap
 from omegaconf import OmegaConf
 from src.common.augmentation import Augmentation
+
 from src.common.utils import all_subclasses, import_all_subclasses
 import_all_subclasses(__file__, __name__, BaseAgent)
 
@@ -18,7 +19,8 @@ def build_agent(cfg,
                 train_env,
                 eval_env,
                 logger,
-                model):
+                model,
+                video_recorder=None):
     
     cfg = DotMap(OmegaConf.to_container(cfg))
 
@@ -27,10 +29,12 @@ def build_agent(cfg,
         cfg.aug_types = []
     aug_func = Augmentation(obs_shape=cfg.obs_shape, 
                             aug_types=cfg.aug_types)
+    
 
     # buffer
     buffer_cfg = cfg.pop('buffer')
     buffer_type = buffer_cfg.pop('type')
+    
     if buffer_type != str(None):
         buffer = BUFFERS[buffer_type]
         buffer = buffer(device=device, gamma=cfg['gamma'], **buffer_cfg)
@@ -46,4 +50,5 @@ def build_agent(cfg,
                  logger=logger,
                  buffer=buffer,
                  aug_func=aug_func,
-                 model=model)
+                 model=model,
+                 video_recorder=video_recorder)

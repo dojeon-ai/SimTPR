@@ -1,0 +1,9 @@
+defaults:
+  - medium
+  - _self_
+
+type: 'dmc'
+game: 'acrobot_swingup'
+action_repeat: 2
+frame_stack: 3
+seed: None  # Defined in cfg

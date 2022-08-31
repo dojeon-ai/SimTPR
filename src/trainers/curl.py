@@ -133,7 +133,6 @@ class CURLTrainer(BaseTrainer):
                 # proceed
                 t += 1
             
-                break
             if e % self.cfg.save_every == 0:
                 self.logger.save_state_dict(model=self.model, epoch=e)
 

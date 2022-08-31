@@ -1,0 +1,22 @@
+# VIT-S
+backbone:
+    type: 'vit'
+    obs_shape: None
+    action_size: None
+    patch_size: [14, 14]
+    t_step: None
+    pool: 'mean'
+    enc_depth: 4
+    enc_dim: 128
+    enc_mlp_dim: 512
+    enc_heads: 2
+    dec_depth: 2 
+    dec_dim: 128
+    dec_mlp_dim: 512
+    dec_heads: 2 
+    emb_dropout: 0.1
+    dropout: 0.1 
+head:
+    type: None
+policy:
+    type: None

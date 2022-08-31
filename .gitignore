@@ -127,4 +127,7 @@ Roms.rar
 google-cloud-cli-395.0.0-linux-x86_64.tar.gz
 Roms/
 google-cloud-sdk/
-data/Roms.rar
+data/Roms.rar*.mp4
+*.npz
+*.gz
+*.mp4

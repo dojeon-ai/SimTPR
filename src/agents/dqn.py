@@ -19,7 +19,8 @@ class DQN(BaseAgent):
                  logger, 
                  buffer,
                  aug_func,
-                 model):
+                 model,
+                 video_recorder=None):
         
         super().__init__()  
         self.cfg = cfg  
@@ -67,7 +68,7 @@ class DQN(BaseAgent):
         
         # augment the observation if needed
         obs_batch, next_obs_batch = self.aug_func(obs_batch), self.aug_func(next_obs_batch)
-        
+
         # y^ = Q_{theta}(s,a)
         cur_online_q = self.model(obs_batch)
         pred = cur_online_q.gather(1, act_batch.unsqueeze(-1)).flatten()

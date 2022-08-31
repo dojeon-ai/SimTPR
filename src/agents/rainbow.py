@@ -23,7 +23,8 @@ class RAINBOW(BaseAgent):
                  logger, 
                  buffer,
                  aug_func,
-                 model):
+                 model,
+                 video_recorder=None):
         
         super().__init__()  
         self.cfg = cfg  
