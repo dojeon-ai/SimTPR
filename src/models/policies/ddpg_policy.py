@@ -2,18 +2,13 @@ import math
 import numpy as np
 import torch
 import torch.nn as nn
-
-
-from src.common.train_utils import to_np, dmc_weight_init, gaussian_logprob, squash, SquashedNormal
 import src.common.augmentation as rad
 from src.models.policies.base import BasePolicy 
-
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from src.common.train_utils import weight_init, TruncatedNormal
-
 
 
 class DDPGPolicy(BasePolicy):
@@ -30,8 +25,6 @@ class DDPGPolicy(BasePolicy):
     def forward(self, encoded_obs, std):
         dist = self.actor(encoded_obs, std)
         return dist
-
-    
         
 
 class Actor(nn.Module):
@@ -60,7 +53,6 @@ class Actor(nn.Module):
         return dist
 
 
-
 class Critic(nn.Module):
     def __init__(self, repr_features, feat_features, hid_features, action_shape):
         super().__init__()
@@ -87,5 +79,3 @@ class Critic(nn.Module):
         q2 = self.Q2(h_action)
 
         return q1, q2
-
-

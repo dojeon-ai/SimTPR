@@ -90,17 +90,17 @@ class RAINBOWVIT(BaseAgent):
 
         return action
     
-    def rl_update(self, idxs, obs_batch, act_batch, return_batch, done_batch, next_obs_batch, weights):
-        """
+    def _update(self):
+        self.model.train()
+        self.target_model.train()
+        idxs, obs_batch, act_batch, return_batch, done_batch, next_obs_batch, weights = self.buffer.sample(self.cfg.batch_size)
+
         # augment the observation if needed
         obs_batch, next_obs_batch = self.aug_func(obs_batch), self.aug_func(next_obs_batch)
 
         # reset noise
         self.model.policy.reset_noise()
         self.target_model.policy.reset_noise()
-        """
-        obs_batch = self.aug_func(obs_batch)
-        self.target_model.eval()
 
         # Calculate current state's q-value distribution
         # cur_online_log_q_dist: (N, A, N_A = num_atoms)
@@ -146,60 +146,21 @@ class RAINBOWVIT(BaseAgent):
         # kl-divergence 
         kl_div = -torch.sum(m * log_pred_q_dist, -1)
         loss = (kl_div * weights).mean()
-        
-        # update priority 
-        if self.buffer.name == 'per_buffer':
-            self.buffer.update_priorities(idxs=idxs, priorities=kl_div.detach().cpu().numpy())
-        
-        return loss
-    
-    def drloc_update(self, obs_batch):
-        # get encoded observation
-        pool = self.model.backbone.pool
-        self.model.backbone.pool = 'identity'
-        t_step = self.model.backbone.t_step
-        h = w = int(self.model.backbone.num_patches**0.5)
-        x = self.model.backbone(obs_batch)[:, t_step:, :]
-        x = rearrange(x, 'n (t h w) d -> n t h w d', t=t_step, h=h, w=w)
-        
-        # get drloc loss
-        pred, target = self.model.head(x)
-        loss = F.l1_loss(pred, target)
-        self.model.backbone.pool = pool
-        return loss
 
-    def update(self):
-        self.model.train()
-        self.target_model.train()
-        idxs, obs_batch, act_batch, return_batch, done_batch, next_obs_batch, weights = self.buffer.sample(self.cfg.batch_size)
-
-        # get loss
-        rl_loss = self.rl_update(idxs, obs_batch, act_batch, return_batch, done_batch, next_obs_batch, weights)
-        #drloc_loss = self.drloc_update(obs_batch)
-        #loss = rl_loss + self.cfg.drloc_lmbda * drloc_loss
-        loss = rl_loss
-        
         # optimization
         self.optimizer.zero_grad()
         loss.backward()
-        
-        # log grad-norm
-        log_data = {}
-        grad_norm = []
-        for p in self.model.parameters():
-            if p.grad is not None:
-                grad_norm.append(p.grad.detach().data.norm(2))
-        grad_norm = torch.stack(grad_norm)
-        log_data['min_grad_norm'] = torch.min(grad_norm).item()
-        log_data['mean_grad_norm'] = torch.mean(grad_norm).item()
-        log_data['max_grad_norm'] = torch.max(grad_norm).item()
         torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.cfg.clip_grad_norm)
         self.optimizer.step()
-        
+    
+        # update priority 
+        if self.buffer.name == 'per_buffer':
+            self.buffer.update_priorities(idxs=idxs, priorities=kl_div.detach().cpu().numpy())
+
         # log
-        log_data['rl_loss'] = rl_loss.item()
-        #log_data['drloc_loss'] = drloc_loss.item()
-        
+        log_data = {
+            'loss': loss.item()
+        }
         return log_data
 
     def train(self):
@@ -223,7 +184,7 @@ class RAINBOWVIT(BaseAgent):
             # update
             if (t >= self.cfg.min_buffer_size) & (t % self.cfg.update_freq == 0):
                 for _ in range(self.cfg.updates_per_step):
-                    log_data = self.update()
+                    log_data = self._update()
                     self.logger.update_log(mode='train', **log_data)
 
             if t % self.cfg.target_update_freq == 0:
@@ -240,8 +201,7 @@ class RAINBOWVIT(BaseAgent):
                 self.evaluate()
                 
             if t % self.cfg.vis_every == 0:
-                pass
-                #self.visualize_attention_map()
+                self.visualize_attention_map()
 
             # move on
             # should not be done (cannot collect the return of trajectory)
@@ -259,11 +219,8 @@ class RAINBOWVIT(BaseAgent):
                 obs_tensor = self.buffer.encode_obs(obs, prediction=True)
 
                 # get action from the model
-                #with torch.no_grad():
-                #    action = self.predict_greedy(obs_tensor, eps=0.01)
-                self.model.train()
-                self.model.policy.reset_noise()
-                action = self.predict(obs_tensor)
+                with torch.no_grad():
+                    action = self.predict_greedy(obs_tensor, eps=0.01)
                 
                 # step
                 next_obs, reward, done, info = self.eval_env.step(action)

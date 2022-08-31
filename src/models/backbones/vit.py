@@ -57,7 +57,7 @@ class VIT(BaseBackbone):
         self.act_pred = nn.Linear(enc_dim, action_size, bias=True)
         self.bc_pred = nn.Linear(enc_dim, action_size, bias=True)
         
-        assert pool in {'identity', 'cls_pool', 'cls_concat', 'cls_last', 'act_concat'}
+        assert pool in {'identity', 'cls_concat', 'cls_last'}
         self.pool = pool
         self.renormalize = renormalize
         self._output_dim = enc_dim
@@ -144,10 +144,6 @@ class VIT(BaseBackbone):
         # pooling
         if self.pool == 'identity':
             x = x
-        
-        elif self.pool == 'cls_pool':
-            x = x[:,:self.t_step,:]
-            x = torch.mean(x, dim=1)
             
         elif self.pool == 'cls_concat':
             x = x[:,:self.t_step,:]

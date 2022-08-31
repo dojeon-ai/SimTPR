@@ -3,13 +3,10 @@ import math
 import re
 import torch
 import torch.nn as nn
-<<<<<<< HEAD
 import torch.nn.functional as F
 from torch import distributions as pyd
 from torch.distributions.utils import _standard_normal
-=======
 from torch.optim.lr_scheduler import _LRScheduler
->>>>>>> b290f39f208792cd5625ab850d606a3133fbf49e
 from einops import rearrange
 
 
@@ -564,7 +561,6 @@ if __name__ == '__main__':
     test_masking(x, mask_ratio, mask_type)
 
     #-------------------------------------------------------------
-<<<<<<< HEAD
 
 ############ DRQ-v2-DMC ###############
 
@@ -645,5 +641,3 @@ class eval_mode:
             model.train_mode(state)
         return False
 
-=======
->>>>>>> b290f39f208792cd5625ab850d606a3133fbf49e
