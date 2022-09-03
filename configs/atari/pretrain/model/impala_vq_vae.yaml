@@ -1,0 +1,21 @@
+# dqn-nature
+backbone:
+    type: 'impala'
+    obs_shape: None # not pre-defined
+    action_size: None
+    renormalize: True
+    expansion_ratio: 2
+    init_type: None
+head:
+    type: 'vq_vae'
+    obs_shape: None 
+    action_size: None
+    n_codes: 1024
+    in_features: 3136
+    embedding_dim: 512
+    dec_type: 'impala'
+    dec_input_shape: (64, 7, 7)
+    dec_init_type: None
+    expansion_ratio: 2
+policy:
+    type: None

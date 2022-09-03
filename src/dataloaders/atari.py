@@ -5,8 +5,11 @@ from pathlib import Path
 from typing import List, Tuple
 from itertools import zip_longest
 
+import tqdm
 import numpy as np
+import skimage as sk
 import torch
+import cv2
 from torch.utils.data import DataLoader, Dataset
 from .base import BaseLoader
 from src.envs.atari import AtariEnv
@@ -32,25 +35,72 @@ class DQNReplayDataset(Dataset):
         data = []
         self.dataset_on_disk = dataset_on_disk
         assert not (dataset_on_disk and dataset_on_gpu)
-        filetypes = ['observation', 'action', 'reward', 'terminal']
+        filetypes = ['observation', 'action', 'reward', 'terminal', 'flow', 'hog']
         for i, filetype in enumerate(filetypes):
             filename = Path(data_path + '/' + f'{game}/{filetype}_{checkpoint}.gz')
             print(f'Loading {filename}')
-
-            # There's no point in putting rewards, actions or terminals on disk.
-            # They're tiny and it'll just cause more I/O.
-            on_disk = dataset_on_disk and filetype == "observation"
-            if not on_disk:
-                g = gzip.GzipFile(filename=filename)
-                data__ = np.load(g)
-
-                # number of interactions for each checkpoint
-                data___ = np.copy(data__[:max_size])
-                print(f'Using {data___.size * data___.itemsize} bytes')
-                del data__
-                data_ = torch.from_numpy(data___)
             
-            else: # observation
+            # generate flow data if not exists
+            if filetype == 'flow':
+                try:
+                    g = gzip.GzipFile(filename=filename)
+                except:
+                    print(f'optical flow data does not exist. estimate the optical flows.')
+                    flows = []
+                    T = self.observation.shape[0]
+                    for t in tqdm.tqdm(range(T-1)):
+                        _prev = np.expand_dims(self.observation[t], -1)
+                        _next = np.expand_dims(self.observation[t+1], -1)
+
+                        # get flow-map
+                        # this parameters are tuned for ATARI games
+                        flow = cv2.calcOpticalFlowFarneback(prev=_prev,
+                                                            next=_next,
+                                                            flow=None,
+                                                            pyr_scale=0.5,
+                                                            levels=3, 
+                                                            winsize=6,
+                                                            iterations=20,
+                                                            poly_n=7,
+                                                            poly_sigma=1.5,
+                                                            flags=cv2.OPTFLOW_FARNEBACK_GAUSSIAN) 
+                        flows.append(flow.astype(np.float16))   
+
+                    # flow at last timestep is stored as zero
+                    flows.append(np.zeros_like(flow).astype(np.float16))
+                    flows = np.stack(flows)
+                    g = gzip.GzipFile(filename, "w")
+                    np.save(file=g, arr=flows)
+                    g.close()
+                        
+            # generate hog data if not exists
+            if filetype == 'hog':
+                try:
+                    g = gzip.GzipFile(filename=filename)
+                except:
+                    print(f'hog data does not exist. compute the hog feature.')
+                    hogs = []
+                    T = self.observation.shape[0]
+                    for t in tqdm.tqdm(range(T)):
+                        img = np.expand_dims(self.observation[t], -1)
+
+                        # get hog
+                        hog = sk.feature.hog(img, 
+                                             orientations=9, 
+                                             pixels_per_cell=(16, 16),
+                                             cells_per_block=(3, 3), 
+                                             visualize=False, 
+                                             multichannel=True)
+                        
+                        hogs.append(hog.astype(np.float16))   
+
+                    hogs = np.stack(hogs)
+                    g = gzip.GzipFile(filename, "w")
+                    np.save(file=g, arr=hogs)
+                    g.close()
+                        
+            # generate .npy data for obs and flow for fast mmap_read
+            if filetype in ['observation', 'flow', 'hog']:
                 new_filename = tmp_data_path + '/' + game
                 new_filename = os.path.join(new_filename, Path(os.path.basename(filename)[:-3]+".npy"))
                 try:
@@ -67,18 +117,30 @@ class DQNReplayDataset(Dataset):
                     del data___
                     del data__
                     data_ = np.load(new_filename) #, mmap_mode="r+")
+            
+            # just load data for action, reward, and terminal
+            else:
+                g = gzip.GzipFile(filename=filename)
+                data__ = np.load(g)
 
+                # number of interactions for each checkpoint
+                data___ = np.copy(data__[:max_size])
+                print(f'Using {data___.size * data___.itemsize} bytes')
+                del data__
+                data_ = torch.from_numpy(data___)                            
+            
             if ((filetype == 'action') and full_action_set) and (not is_dmc):
                 action_mapping = dict(zip(data_.unique().numpy(),
                                           AtariEnv(re.sub(r'(?<!^)(?=[A-Z])', '_', game).lower()).ale.getMinimalActionSet()))
                 data_.apply_(lambda x: action_mapping[x])
+                
             if dataset_on_gpu:
                 print("Stored on GPU")
                 data_ = data_.to(device) #cuda(non_blocking=True).to(device)
                 del data___
             data.append(data_)
             setattr(self, filetype, data_)
-
+        
         self.game = game
         self.f = frames
         self.t = t_step
@@ -88,19 +150,26 @@ class DQNReplayDataset(Dataset):
     def __len__(self) -> int:
         return self.effective_size
 
-    def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, 
+                                               torch.Tensor, torch.Tensor]:
         # batch_ind = index // self.effective_size
         time_ind = index % self.effective_size
         sl = slice(time_ind, time_ind+self.f+self.t)
         if self.dataset_on_disk:
             obs = torch.from_numpy(self.observation[sl])
+            flow = torch.from_numpy(self.flow[sl])
+            hog = torch.from_numpy(self.hog[sl])
         else:
             obs = (self.observation[sl])
+            flow = (self.flow[sl])
+            hog = (self.hog[sl])
 
         return tuple([obs,
-                    self.action[sl],
-                    self.reward[sl],
-                    self.terminal[sl]])
+                     self.action[sl],
+                     self.reward[sl],
+                     self.terminal[sl],
+                     flow,
+                     hog])
 
 
 class MultiDQNReplayDataset(Dataset):
@@ -138,7 +207,8 @@ class MultiDQNReplayDataset(Dataset):
     def __len__(self) -> int:
         return len(self.datasets) * len(self.datasets[0])
 
-    def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, 
+                                               torch.Tensor, torch.Tensor, torch.Tensor]:
         ckpt_index = index % len(self.datasets)
         index = index // len(self.datasets)
         return self.datasets[ckpt_index][index]
@@ -194,7 +264,7 @@ class ATARILoader(BaseLoader):
             # observation shape
             # ATARI: (B, self.f+self.t, H=84, W=84)
             # DMC: (B, self.f+self.t, C=3, H=84, W=84)
-            observation, action, reward, done = torch.utils.data.dataloader.default_collate(batch)
+            observation, action, reward, done, flow, hog = torch.utils.data.dataloader.default_collate(batch)
             """
             # tbcfhw: standard format for ATC
             observation = torch.einsum('bthw->tbhw', observation).unsqueeze(2).repeat(1, 1, frames, 1, 1)
@@ -225,8 +295,12 @@ class ATARILoader(BaseLoader):
             reward = reward[:, frames-1:-1]
             reward = torch.nan_to_num(reward).sign()  # Apparently possible, somehow.
             done = done[:, frames-1:-1].bool()
+            # b, t, h, w, c -> b, t, c, h, w
+            flow = flow[:, frames-1:-1].permute(0,1,4,2,3) 
+            # b, t, h_d
+            hog = hog[:, frames-1:-1]
             
-            return sanitize_batch(OfflineSamples(observation, action, reward, done))
+            return sanitize_batch(OfflineSamples(observation, action, reward, done, flow, hog))
 
         dataset = MultiDQNReplayDataset(self.data_path, 
                                         self.tmp_data_path, 

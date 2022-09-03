@@ -2,7 +2,7 @@ cd ..
 cd ..
 python run_atari_finetune.py \
     --group_name baseline \
-    --exp_name no_pretrain_impala \
+    --exp_name no_pretrain_impala_nomaxpool \
     --mode full \
     --config_name drq_impala \
     --num_seeds 10 \
