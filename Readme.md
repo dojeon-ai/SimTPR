@@ -79,3 +79,14 @@ cd d4rl
 pip install -e .
 python download_mujoco_dataset.py
 ```
+
+
+
+#### DMC download
+```
+
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/nas3_userK/hojoonlee/.mujoco/mujoco210/bin
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia
+export PATH="/home/nas2_userK/hojoonlee/anaconda3/bin:$PATH" 
+
+```
