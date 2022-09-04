@@ -4,8 +4,6 @@ import torch
 import torch.nn as nn
 
 
-from src.common.train_utils import to_np, dmc_weight_init, gaussian_logprob, squash, SquashedNormal
-import src.common.augmentation as rad
 from src.models.policies.base import BasePolicy 
 
 import numpy as np

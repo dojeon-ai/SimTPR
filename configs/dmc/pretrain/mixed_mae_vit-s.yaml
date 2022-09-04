@@ -12,7 +12,7 @@ model_path: ''
 
 defaults:
 - _self_
-- dataloader: mixed_bn256_t1
+- dataloader: mixed_bn256_t8
 - env: cheetah_run
-- trainer: mae
-- model: vit-s
+- trainer: mae_vit
+- model: mae_vit_s

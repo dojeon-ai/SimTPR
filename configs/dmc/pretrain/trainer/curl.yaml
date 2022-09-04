@@ -5,7 +5,6 @@ t_step: None
 
 obs_shape: None
 action_size: None
-# aug_types: [random_shift, intensity]
 aug_types: [dmc_random_crop]
 
 optimizer:

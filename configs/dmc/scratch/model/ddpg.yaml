@@ -4,6 +4,7 @@ backbone:
     conv_filters: [32,32,32,32]
     kernel_sizes: [3,3,3,3]
     strides:      [2,1,1,1]
+    action_size: None
 head: 
     type: 'None'
 policy: 

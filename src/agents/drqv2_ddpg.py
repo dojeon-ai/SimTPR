@@ -219,10 +219,7 @@ class DrQV2Agent(BaseAgent):
         self._global_step = 0
         self._global_episode = 0
         obs = self.train_env.reset() 
-        # action_shape = self.train_env.action_space.shape
-        # self.buffer.store(obs, np.zeros(action_shape), None, None, first=True)
         training_timesteps = (self.cfg.num_timesteps) // 2
-
 
         for t in tqdm.tqdm(range(training_timesteps)):
 
@@ -233,7 +230,6 @@ class DrQV2Agent(BaseAgent):
                 action = self.predict(obs_tensor, sample=True)
 
             next_obs, reward, done, info = self.train_env.step(action) 
-            # self.buffer.store(next_obs, action, reward, done) 
             self.buffer.store(obs, action, reward, done) 
             self._global_step = t
 
@@ -259,7 +255,6 @@ class DrQV2Agent(BaseAgent):
                 self._global_episode += 1
                 print(f'global_episode: {self._global_episode}')
                 obs = self.train_env.reset() 
-                # self.buffer.store(obs, None, None, None, first=True) 
 
                 # save_dataset
                 # 한 episode에 500 step

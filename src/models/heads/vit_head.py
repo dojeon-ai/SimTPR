@@ -107,7 +107,7 @@ class VITHead(BaseHead):
         
         # decoder
         x = self.emb_dropout(x)
-        x = self.decoder(x)
+        x, _ = self.decoder(x)
         x = self.out_norm(x)   
         
         # predictor

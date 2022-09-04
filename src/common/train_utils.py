@@ -3,13 +3,10 @@ import math
 import re
 import torch
 import torch.nn as nn
-<<<<<<< HEAD
 import torch.nn.functional as F
 from torch import distributions as pyd
 from torch.distributions.utils import _standard_normal
-=======
 from torch.optim.lr_scheduler import _LRScheduler
->>>>>>> b290f39f208792cd5625ab850d606a3133fbf49e
 from einops import rearrange
 
 
@@ -18,7 +15,6 @@ def orthogonal_init(module, gain=nn.init.calculate_gain('relu')):
         nn.init.orthogonal_(module.weight.data, gain)
         nn.init.constant_(module.bias.data, 0)
     return module
-
 
 def xavier_uniform_init(module, gain=1.0):
     if isinstance(module, nn.Linear) or isinstance(module, nn.Conv2d):
@@ -564,7 +560,6 @@ if __name__ == '__main__':
     test_masking(x, mask_ratio, mask_type)
 
     #-------------------------------------------------------------
-<<<<<<< HEAD
 
 ############ DRQ-v2-DMC ###############
 
@@ -644,6 +639,3 @@ class eval_mode:
         for model, state in zip(self.models, self.prev_states):
             model.train_mode(state)
         return False
-
-=======
->>>>>>> b290f39f208792cd5625ab850d606a3133fbf49e

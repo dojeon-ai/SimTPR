@@ -2,7 +2,7 @@
 games='Alien Amidar Assault Asterix BankHeist BattleZone Boxing Breakout ChopperCommand CrazyClimber DemonAttack Freeway Frostbite Gopher Hero Jamesbond Kangaroo Krull KungFuMaster MsPacman Pong PrivateEye Qbert RoadRunner Seaquest UpNDown'
 ckpts='1 10 25 50'
 files='action observation reward terminal'
-export data_dir='/video_rl/data/atari'
+export data_dir='/home/nas2_userI/byungkunlee/research/rl/video_rl/data/atari'
 
 
 echo "Missing Files:"

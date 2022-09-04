@@ -43,19 +43,29 @@ def run(args):
 
     dataloader = build_dataloader(cfg.dataloader)
 
-    if 't_step' in cfg.model.backbone:
-        cfg.trainer.t_step = cfg.model.backbone.t_step = cfg.dataloader.t_step
-    else:
-        cfg.trainer.t_step = cfg.dataloader.t_step
+
 
     # shape config
     cfg.env.seed = cfg.seed
     env, _ = build_env(cfg.env)
     obs_shape = [cfg.dataloader.frames] + list(env.observation_space.shape[1:])
-    cfg.trainer.obs_shape = cfg.model.backbone.obs_shape = obs_shape  
-    # TODO: action -> DMC는 dimension이 달라 (atari-> 1dim,categorical , DMC -> N-dim, continuous)
-    cfg.trainer.action_size = cfg.model.backbone.action_size = env.action_space.shape
-    ipdb.set_trace()
+    action_size = (env.action_space.shape)[0]
+
+     # integrate hyper-params
+    param_dict = {'t_step': cfg.dataloader.t_step,
+                  'obs_shape': obs_shape,
+                  'action_size': action_size}
+
+    for key, value in param_dict.items():
+        if key in cfg.model.backbone:
+            cfg.model.backbone[key] = value
+            
+        if key in cfg.model.head:
+            cfg.model.head[key] = value
+            
+        if key in cfg.trainer:
+            cfg.trainer[key] = value
+
     del env
     
     # logger
@@ -80,7 +90,7 @@ def run(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(allow_abbrev=False)
     parser.add_argument('--config_dir',  type=str,    default='dmc/pretrain')
-    parser.add_argument('--config_name', type=str,    default='mixed_simclr_cnn') 
+    parser.add_argument('--config_name', type=str,    default='mixed_mae_vit-s') 
     parser.add_argument('--overrides',   action='append', default=[])
     args = parser.parse_args()
 

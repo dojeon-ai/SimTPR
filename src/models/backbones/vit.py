@@ -28,7 +28,7 @@ class VIT(BaseBackbone):
         # frame, channel, image_height, image_width = obs_shape
         # image_channel = frame * channel
         frame, channel, image_height, image_width = obs_shape
-        image_channel = channel        
+        image_channel = channel * frame       
         patch_height, patch_width = patch_size
 
         assert image_height % patch_height == 0 and image_width % patch_width == 0, 'Image must be divisible by the patch size.'
@@ -112,6 +112,8 @@ class VIT(BaseBackbone):
             x = rearrange(x, 'n t c (h p1) (w p2) -> n (t h w) (p1 p2 c)', 
                           p1 = self.patch_size[0], p2 = self.patch_size[1])
         
+
+
         # patch embed
         x = self.patch_embed(x)
 

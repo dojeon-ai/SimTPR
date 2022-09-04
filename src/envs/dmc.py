@@ -54,7 +54,7 @@ class FrameStack(gym.Wrapper):
         return np.concatenate(list(self._frames), axis=0)
 
 
-def make_dmc_env(game, frame_stack, action_repeat, seed, num_timesteps, stddev_schedule):
+def make_dmc_env(game, frame_stack, action_repeat, seed, num_timesteps, stddev_schedule, buffer_size=None):
     domain, task = game.split('_', 1)
     camera_id = 2 if domain == 'quadruped' else 0
     env = dmc2gym.make(domain_name=domain,

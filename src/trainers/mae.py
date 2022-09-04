@@ -212,7 +212,7 @@ class MAETrainer(BaseTrainer):
         def depatchify(patch):
             video = rearrange(patch, 'n (t h w) (p1 p2 c) -> n t c (h p1) (w p2)', 
                               t=self.cfg.t_step, 
-                              c = self.cfg.obs_shape[1], 
+                              c = self.cfg.obs_shape[1] * self.cfg.obs_shape[0], # BK fix 
                               h=self.cfg.obs_shape[2]//self.cfg.patch_size[0], 
                               w=self.cfg.obs_shape[2]//self.cfg.patch_size[1], 
                               p1 = self.cfg.patch_size[0], 
@@ -220,7 +220,7 @@ class MAETrainer(BaseTrainer):
             return video
         
         patch_mask = patch_mask_dict['patch_mask']
-        
+
         target_video = (depatchify(patch)[0])
         masked_video = (depatchify(patch * (1-patch_mask).unsqueeze(-1))[0])
         
