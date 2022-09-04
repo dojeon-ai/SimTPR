@@ -4,9 +4,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from src.common.train_utils import weight_init
-
-import ipdb
-
 from src.models.backbones.base import BaseBackbone
 
 class DrQv2Encoder(BaseBackbone):
@@ -19,7 +16,6 @@ class DrQv2Encoder(BaseBackbone):
                  action_size
                  ):
         super().__init__()
-
         assert len(obs_shape) == 4 
         assert (len(conv_filters) == len(kernel_sizes))
         assert (len(conv_filters)  == len(strides))
@@ -35,9 +31,8 @@ class DrQv2Encoder(BaseBackbone):
         test_obs = torch.rand(obs_shape)
         test_obs = test_obs.reshape(1, S*C, H, W)
         output_shape = self.forward(test_obs).squeeze().shape
-        assert len(output_shape) == 1, 'conv shape 오류'
+        assert len(output_shape) == 1, 'conv shape mismatch'
         self.repr_features = output_shape[0]
-
         self.apply(weight_init)
 
     def forward(self, obs):

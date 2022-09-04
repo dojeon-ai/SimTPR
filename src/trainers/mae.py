@@ -147,18 +147,31 @@ class MAETrainer(BaseTrainer):
             # loss            
             act_pred = rearrange(act_pred, 'n t d -> (n t) d')
             act = rearrange(act, 'n t -> (n t)')
-            act_mask = rearrange(act_mask, 'n t -> (n t)')
             act_loss = F.cross_entropy(act_pred, act, reduction='none')
             
             # mean over removed actions
-            loss = (act_loss * act_mask).sum() / (act_mask.sum())
+            act_loss = rearrange(act_loss, '(n t) -> n t', n=self.cfg.batch_size)
             
+            # separate idm-loss and bc-loss
+            idm_loss, bc_loss = act_loss[:, :self.cfg.t_step-1], act_loss[:, self.cfg.t_step-1:]
+            idm_mask, bc_mask = act_mask[:, :self.cfg.t_step-1], act_mask[:, self.cfg.t_step-1:]
+
+            # mask-out loss_fn
+            idm_loss = (idm_loss * idm_mask).sum() / (idm_mask.sum())
+            bc_loss = (bc_loss * bc_mask).sum() / (bc_mask.sum())
+            loss = idm_loss + self.cfg.bc_lmbda * bc_loss
+                        
             # logs
             log_data = {}
-            log_data['act_loss'] = loss.item()
-
+            log_data['idm_loss'] = idm_loss.item()
+            log_data['bc_loss'] = bc_loss.item()
+            
             act_correct = torch.max(act_pred, 1)[1] == act
-            log_data['act_acc'] = ((act_correct * act_mask).sum() / act_mask.sum()).item()
+            act_correct = rearrange(act_correct, '(n t) -> n t', n=self.cfg.batch_size)
+            idm_correct, bc_correct = act_correct[:, :self.cfg.t_step-1], act_correct[:, self.cfg.t_step-1:]
+            
+            log_data['idm_acc'] = ((idm_correct * idm_mask).sum() / idm_mask.sum()).item()
+            log_data['bc_acc'] = ((bc_correct * bc_mask).sum() / bc_mask.sum()).item()
             
         return loss, log_data
         
@@ -177,6 +190,14 @@ class MAETrainer(BaseTrainer):
                 # backward
                 self.optimizer.zero_grad()
                 loss.backward()
+                grad_norm = []
+                for p in self.model.parameters():
+                    if p.grad is not None:
+                        grad_norm.append(p.grad.detach().data.norm(2))
+                grad_norm = torch.stack(grad_norm)
+                log_data['min_grad_norm'] = torch.min(grad_norm).item()
+                log_data['mean_grad_norm'] = torch.mean(grad_norm).item()
+                log_data['max_grad_norm'] = torch.max(grad_norm).item()
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.cfg.clip_grad_norm)
                 self.optimizer.step()
 

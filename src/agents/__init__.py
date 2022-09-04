@@ -19,8 +19,7 @@ def build_agent(cfg,
                 train_env,
                 eval_env,
                 logger,
-                model,
-                video_recorder=None):
+                model):
     
     cfg = DotMap(OmegaConf.to_container(cfg))
 
@@ -50,5 +49,4 @@ def build_agent(cfg,
                  logger=logger,
                  buffer=buffer,
                  aug_func=aug_func,
-                 model=model,
-                 video_recorder=video_recorder)
+                 model=model)

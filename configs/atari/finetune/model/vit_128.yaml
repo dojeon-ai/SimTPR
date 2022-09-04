@@ -6,10 +6,10 @@ backbone:
     t_step: 8
     patch_size: [14, 14]
     pool: 'cls_concat'
-    enc_depth: 4
-    enc_dim: 192
-    enc_mlp_dim: 768
-    enc_heads: 3
+    enc_depth: 8
+    enc_dim: 128
+    enc_mlp_dim: 512
+    enc_heads: 2
     emb_dropout: 0.0
     dropout: 0.0
     renormalize: False
@@ -17,7 +17,7 @@ head:
     type: None
 policy:
     type: 'rainbow'
-    in_features: 1536
+    in_features: 1024
     hid_features: 256
     action_size: None # not pre-defined
     num_atoms: 51

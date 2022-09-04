@@ -1,0 +1,19 @@
+# OT-Rainbow
+project_name: 'atari_pretrain'
+entity: 'draftrec'
+group_name: 'test'
+exp_name: 'idm'
+device: cuda:0
+seed: 0
+
+# pretrained-backbone
+use_artifact: False
+artifact_name: ''
+model_path: ''
+
+defaults:
+- _self_
+- dataloader: mixed_bn256_t8
+- env: atari
+- trainer: idm
+- model: vit_idm

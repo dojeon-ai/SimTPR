@@ -1,18 +1,25 @@
+import os
+os.environ['MKL_SERVICE_FORCE_INTEL'] = '1'
+#os.environ['MUJOCO_GL'] = 'egl'
+
+import ipdb
+from dotmap import DotMap
+import torch
 import argparse
-import hydra
+import wandb
+import datetime
 from hydra import compose, initialize
-from src.dataloaders import *
+from pathlib import Path
+from typing import List
+
 from src.envs import *
 from src.models import *
 from src.common.logger import WandbTrainerLogger
 from src.common.utils import set_global_seeds
+from src.common.dmc_video import VideoRecorder # TODO:
+from src.common.logger import WandbTrainerLogger
+from src.dataloaders import *
 from src.trainers import build_trainer
-from typing import List
-from dotmap import DotMap
-import torch
-import wandb
-import numpy as np
-import re
 
 
 def run(args):    
@@ -32,14 +39,19 @@ def run(args):
     # dataset
     torch.set_num_threads(1)#<- when dataset on disk
     cfg.dataloader.device = cfg.device
+    cfg.dataloader.game = cfg.env.game
+
     dataloader = build_dataloader(cfg.dataloader)
 
+
+
     # shape config
+    cfg.env.seed = cfg.seed
     env, _ = build_env(cfg.env)
     obs_shape = [cfg.dataloader.frames] + list(env.observation_space.shape[1:])
-    action_size = env.action_space.n
-    
-    # integrate hyper-params
+    action_size = (env.action_space.shape)[0]
+
+     # integrate hyper-params
     param_dict = {'t_step': cfg.dataloader.t_step,
                   'obs_shape': obs_shape,
                   'action_size': action_size}
@@ -53,6 +65,7 @@ def run(args):
             
         if key in cfg.trainer:
             cfg.trainer[key] = value
+
     del env
     
     # logger
@@ -61,19 +74,13 @@ def run(args):
     # model
     model = build_model(cfg.model)
     
-    # load-pretrained model
-    if logger.use_pretrained_model:
-        pretrained_model_path = logger.get_pretrained_model_path()
-        state_dict = logger.load_state_dict(pretrained_model_path, device)
-        model.load_backbone(state_dict, head=False)
-    
-    # trainer
+    # agent   
     trainer = build_trainer(cfg=cfg.trainer,
                             dataloader=dataloader,
                             device=device,
                             logger=logger,
                             model=model)
-    
+
     # train
     trainer.train()
     wandb.finish()
@@ -82,8 +89,8 @@ def run(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(allow_abbrev=False)
-    parser.add_argument('--config_dir',  type=str,    default='atari/pretrain')
-    parser.add_argument('--config_name', type=str,    default='mixed_recon_impala') 
+    parser.add_argument('--config_dir',  type=str,    default='dmc/pretrain')
+    parser.add_argument('--config_name', type=str,    default='mixed_mae_vit-s') 
     parser.add_argument('--overrides',   action='append', default=[])
     args = parser.parse_args()
 

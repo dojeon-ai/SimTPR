@@ -28,6 +28,8 @@ def build_model(cfg):
 
     backbone = BACKBONES[backbone_type]
     backbone = backbone(**backbone_cfg)
+    
+    # TODO: erase drqv2 specific condition
     if head_type != str(None):
         head = HEADS[head_type]
         if backbone_type == 'drqv2_encoder':

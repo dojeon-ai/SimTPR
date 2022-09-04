@@ -3,22 +3,17 @@ backbone:
     type: 'vit'
     obs_shape: None
     action_size: None
-    t_step: 8
+    t_step: None
     patch_size: [14, 14]
-    pool: 'cls_concat'
+    pool: 'identity'
     enc_depth: 4
     enc_dim: 192
     enc_mlp_dim: 768
     enc_heads: 3
     emb_dropout: 0.0
-    dropout: 0.0
+    dropout: 0.1
     renormalize: False
 head:
     type: None
 policy:
-    type: 'rainbow'
-    in_features: 1536
-    hid_features: 256
-    action_size: None # not pre-defined
-    num_atoms: 51
-    noisy_std: 0.5
+    type: None

@@ -15,7 +15,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(allow_abbrev=False)
     parser.add_argument('--group_name',type=str,   default='test')
     parser.add_argument('--exp_name',     type=str,    default='test')
-    parser.add_argument('--mode',         type=str,    choices=['test','full'])
+    parser.add_argument('--mode',         type=str,    choices=['test','full', '1', '2', '3', '4'])
     parser.add_argument('--config_dir',   type=str,    default='atari/pretrain')
     parser.add_argument('--config_name',  type=str,    default='mixed_curl_impala') 
     parser.add_argument('--use_artifact', type=bool,    default=False)
@@ -39,6 +39,16 @@ if __name__ == '__main__':
         games = ['alien', 'assault', 'breakout', 'frostbite', 
                   'kangaroo', 'ms_pacman', 'pong', 'qbert']
 
+    if mode == '1':
+        games = _games[:8]
+    elif mode == '2':
+        games = _games[8:16]
+    elif mode == '3':
+        games = _games[16:24]
+    elif mode == '4':
+        games = _games[24:26]
+        
+        
     # create configurations for child run
     experiments = []
     device_id = 0

@@ -41,6 +41,7 @@ min_buffer_size: 2000
 # logging
 log_every: 1000
 eval_every: 100000
+vis_every: 2000
 
 # evaluation
 num_eval_trajectories: 10
