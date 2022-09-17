@@ -3,10 +3,10 @@ from collections import deque
 from .base import BaseBuffer
 import numpy as np
 import torch
-from src.common.utils import set_global_seeds
+from src.common.train_utils import set_global_seeds
 
 
-class DDPGReplayBuffer(BaseBuffer):
+class DDPGBuffer(BaseBuffer):
     name = 'ddpg_buffer'
     def __init__(self, buffer_size, n_step, gamma, frame_stack,
                  data_specs=None, device='cpu'):
@@ -24,9 +24,7 @@ class DDPGReplayBuffer(BaseBuffer):
         self.gamma_vec = np.power(gamma, np.arange(n_step)).astype('float32')
         self.next_dis = gamma**n_step
         self.device = device
-
         self.first = True
-
 
     def _initial_setup(self, obs, action, reward, done):
         self.index = 0
@@ -45,7 +43,6 @@ class DDPGReplayBuffer(BaseBuffer):
         self.valid = np.zeros([self.buffer_size], dtype=np.bool_)
         # 데이터셋 저장을 위한 np.array (last3개는 저장, 0,1은 저장 X)
         self.save_valid = np.ones([self.buffer_size], dtype=np.bool_)
-
 
     def add_data_point(self, obs, action, reward, done, first):      
         latest_obs = obs[-1]
@@ -73,7 +70,6 @@ class DDPGReplayBuffer(BaseBuffer):
                 self.valid[self.index:self.buffer_size] = False
                 self.valid[0:end_invalid] = False
 
-
             else:
                 self.valid[self.index:end_invalid] = False
                 np.copyto(self.obs[self.index:end_index], latest_obs)
@@ -81,7 +77,6 @@ class DDPGReplayBuffer(BaseBuffer):
                 np.copyto(self.rew[self.index:end_index], reward)
                 np.copyto(self.dis[self.index:end_index], 1)
                 self.save_valid[self.index:end_index-1] = False
-            
                 
             self.index = end_index
             self.traj_index = 1
@@ -108,7 +103,6 @@ class DDPGReplayBuffer(BaseBuffer):
             if self.traj_index >= self.n_step:  
                 self.valid[(self.index - self.n_step) % self.buffer_size] = True
 
-
             # FIXME: self_valid가 False가 된 부분도, buffer를 한바퀴 돌면 다시 True가 될 수 있다
             self.save_valid[self.index] = 1
             
@@ -134,7 +128,6 @@ class DDPGReplayBuffer(BaseBuffer):
         return self.gather_n_step_indices(indices)
 
     def gather_n_step_indices(self, indices):
-
         n_samples = indices.shape[0]
 
         # all_gather_ranges = np.stack([np.arange(indices[i] - self.frame_stack, indices[i] + self.n_step)

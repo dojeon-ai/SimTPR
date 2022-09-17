@@ -4,7 +4,7 @@ from dotmap import DotMap
 from omegaconf import OmegaConf
 from src.common.augmentation import Augmentation
 
-from src.common.utils import all_subclasses, import_all_subclasses
+from src.common.class_utils import all_subclasses, import_all_subclasses
 import_all_subclasses(__file__, __name__, BaseAgent)
 
 AGENTS = {subclass.get_name():subclass
@@ -28,7 +28,6 @@ def build_agent(cfg,
         cfg.aug_types = []
     aug_func = Augmentation(obs_shape=cfg.obs_shape, 
                             aug_types=cfg.aug_types)
-    
 
     # buffer
     buffer_cfg = cfg.pop('buffer')

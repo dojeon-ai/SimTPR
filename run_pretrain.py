@@ -5,7 +5,7 @@ from src.dataloaders import *
 from src.envs import *
 from src.models import *
 from src.common.logger import WandbTrainerLogger
-from src.common.utils import set_global_seeds
+from src.common.train_utils import set_global_seeds
 from src.trainers import build_trainer
 from typing import List
 from dotmap import DotMap
@@ -36,13 +36,15 @@ def run(args):
 
     # shape config
     env, _ = build_env(cfg.env)
-    obs_shape = [cfg.dataloader.frames] + list(env.observation_space.shape[1:])
+    obs_shape = [cfg.dataloader.t_step] + list(env.observation_space.shape[1:])
     action_size = env.action_space.n
     
-    # integrate hyper-params
-    param_dict = {'t_step': cfg.dataloader.t_step,
-                  'obs_shape': obs_shape,
-                  'action_size': action_size}
+    # initiaize not pre-defined hyperparameters
+    param_dict = {'obs_shape': obs_shape,
+                  'action_size': action_size,
+                  'process_type': cfg.model.process_type,
+                  't_step': cfg.dataloader.t_step,
+                  'batch_size': cfg.dataloader.batch_size}
 
     for key, value in param_dict.items():
         if key in cfg.model.backbone:
@@ -59,7 +61,7 @@ def run(args):
     logger= WandbTrainerLogger(cfg)
 
     # model
-    model = build_model(cfg.model)
+    model = build_trainer_model(cfg.model)
     
     # load-pretrained model
     if logger.use_pretrained_model:
@@ -83,7 +85,7 @@ def run(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(allow_abbrev=False)
     parser.add_argument('--config_dir',  type=str,    default='atari/pretrain')
-    parser.add_argument('--config_name', type=str,    default='mixed_recon_impala') 
+    parser.add_argument('--config_name', type=str,    default='mixed_mae_vit') 
     parser.add_argument('--overrides',   action='append', default=[])
     args = parser.parse_args()
 

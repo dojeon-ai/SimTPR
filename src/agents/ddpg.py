@@ -15,9 +15,8 @@ import torch.optim as optim
 from pathlib import Path
 
 from .base import BaseAgent
-from src.common.train_utils import schedule, eval_mode, soft_update_params
+from src.common.train_utils import schedule, eval_mode, soft_update_params, set_global_seeds
 from src.common.augmentation import RandomShiftsAug
-from src.common.utils import set_global_seeds
 
 
 from collections import namedtuple
@@ -67,7 +66,6 @@ class DrQV2Agent(BaseAgent):
         print('video save directory:', self.new_dir)
         if not self.new_dir.exists():
             self.new_dir.mkdir(exist_ok=False, parents=True)
-
 
     @property
     def encoder(self):
@@ -212,9 +210,7 @@ class DrQV2Agent(BaseAgent):
         metrics.update(metric_actor)
         return metrics
 
-
     def train(self):
-
         save_start_index = 0
         self._global_step = 0
         self._global_episode = 0
@@ -248,7 +244,6 @@ class DrQV2Agent(BaseAgent):
             if t % self.cfg.eval_every == 0:
                 self.logger.save_state_dict(model=self.model)
                 self.evaluate()
-            
 
             # move on
             if done:  
@@ -320,14 +315,12 @@ class DrQV2Agent(BaseAgent):
 
                         del _o1, _o2, _a1, _a2, _r1, _r2, _d1, _d2
 
-
                     else:
                         save_valid_indices = self.buffer.save_valid[save_start_index:save_end_index]
                         _o1 = self.buffer.obs[save_start_index:save_end_index][save_valid_indices]
                         _a1 = self.buffer.act[save_start_index:save_end_index][save_valid_indices]
                         _r1 = self.buffer.rew[save_start_index:save_end_index][save_valid_indices]
                         _d1 = self.buffer.done[save_start_index:save_end_index][save_valid_indices]
-
 
                         # action-npz
                         self.save_data(_a1, Path(str(act_name)+'.npz'))
@@ -361,10 +354,8 @@ class DrQV2Agent(BaseAgent):
                         del _o1, _a1, _r1, _d1
 
                     save_start_index = save_end_index
-
             else: 
                 obs = next_obs
-
             
     def save_data(self, data, dir):
         with io.BytesIO() as bs:
@@ -373,13 +364,11 @@ class DrQV2Agent(BaseAgent):
             with dir.open('wb') as f:
                 f.write(bs.read())
 
-
-
     def evaluate(self):
         self.model.eval()
         for idx in tqdm.tqdm(range(self.cfg.num_eval_trajectories)):
             obs = self.eval_env.reset()
-            self.video_recorder.init(self.eval_env, enabled=(idx == 0))
+            #self.video_recorder.init(self.eval_env, enabled=(idx == 0))
             while True:                
                 obs_tensor = self.buffer.encode_obs(obs, prediction=True, ddpg=True)
                 # get action from the model
@@ -390,11 +379,11 @@ class DrQV2Agent(BaseAgent):
                 # logger
                 info = EnvInfo(game_score=reward, traj_done=done)
                 self.logger.step(obs, reward, done, info, mode='eval')
-                self.video_recorder.record(self.eval_env)
+                #self.video_recorder.record(self.eval_env)
                 # move on
                 if done:
                     self.logger.write_log(mode='eval')
-                    self.video_recorder.save(f'{self.global_frame}_{idx}.mp4')
+                    #self.video_recorder.save(f'{self.global_frame}_{idx}.mp4')
                     break
                 else:
                     obs = next_obs

@@ -4,7 +4,7 @@ from hydra import compose, initialize
 from src.envs import *
 from src.models import *
 from src.common.logger import WandbAgentLogger
-from src.common.utils import set_global_seeds
+from src.common.train_utils import set_global_seeds
 from src.agents import build_agent
 from typing import List
 from dotmap import DotMap

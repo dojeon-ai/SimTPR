@@ -1,9 +1,10 @@
-# dqn-nature
 backbone:
     type: 'nature'
-    obs_shape: None # not pre-defined
+    obs_shape: None
     action_size: None
-    renormalize: False
+    process_type: 'stack_frame'
+    expansion_ratio: 1
+    renormalize: True
     init_type: None
 head:
     type: byol

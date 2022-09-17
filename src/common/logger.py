@@ -3,7 +3,7 @@ import torch
 import os
 import json
 from omegaconf import OmegaConf
-from src.common.utils import save__init__args
+from src.common.class_utils import save__init__args
 from collections import deque
 import numpy as np
 
@@ -32,15 +32,13 @@ class WandbTrainerLogger(object):
         self.artifacts = {}
 
         self.logger = TrainerLogger()
-        self.step = 0
 
     def update_log(self, **kwargs):
         self.logger.update_log(**kwargs)
-        self.step += 1
     
-    def write_log(self):
+    def write_log(self, step):
         log_data = self.logger.fetch_log()
-        wandb.log(log_data, step=self.step)
+        wandb.log(log_data, step=step)
 
     def save_state_dict(self, model, epoch=1):
         name = self.cfg.dataloader.game + '/' + str(self.cfg.seed) + '/' + str(epoch) + '/model.pth'
@@ -69,16 +67,21 @@ class WandbTrainerLogger(object):
 class TrainerLogger(object):
     def __init__(self):
         self.average_meter_set = AverageMeterSet()
+        self.media_set = {}
     
     def update_log(self, **kwargs):
         for k, v in kwargs.items():
-            self.average_meter_set.update(k, v)
+            if isinstance(v, float) or isinstance(v, int):
+                self.average_meter_set.update(k, v)
+            else:
+                self.media_set[k] = v
 
     def fetch_log(self):
         log_data = {}
         log_data.update(self.average_meter_set.averages())
         self.average_meter_set = AverageMeterSet()
-            
+        log_data.update(self.media_set)
+        
         return log_data
 
 

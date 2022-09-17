@@ -13,7 +13,7 @@ model_path: ''
 
 defaults:
 - _self_
-- dataloader: mixed_bn64_t8
+- dataloader: mixed_bn256_t4
 - env: atari
 - trainer: recon
 - model: impala_recon

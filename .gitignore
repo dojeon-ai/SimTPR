@@ -121,6 +121,7 @@ __pycache__
 data/atari
 data/mujoco
 data/youtube
+data/rars
 artifacts
 rar
 Roms.rar

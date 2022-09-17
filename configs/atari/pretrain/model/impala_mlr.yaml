@@ -1,10 +1,10 @@
-# dqn-nature
 backbone:
     type: 'impala'
-    obs_shape: None # not pre-defined
+    obs_shape: None
     action_size: None
+    process_type: 'stack_frame'
+    expansion_ratio: 1
     renormalize: True
-    expansion_ratio: 2
     init_type: None
 head:
     type: mlr

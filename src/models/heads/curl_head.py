@@ -1,15 +1,18 @@
 import torch.nn as nn
 import torch
 from .base import BaseHead
+from einops import rearrange
 
 
 class CURLHead(BaseHead):
     name = 'curl'
     def __init__(self, 
+                 process_type,
                  in_features,
                  hid_features,
                  out_features):
         super().__init__()
+        self.process_type = process_type
         self.projector = nn.Sequential(
             nn.Linear(in_features=in_features, out_features=hid_features),
             nn.BatchNorm1d(num_features=hid_features),
@@ -21,14 +24,22 @@ class CURLHead(BaseHead):
         )
 
     def project(self, x):
+        n, t, d = x.shape
+        x = rearrange(x, 'n t d-> (n t) d')
         x = self.projector(x)
+        x = rearrange(x, '(n t) d-> n t d', t=t)
         return x
-
+        
     def predict(self, x):
+        n, t, d = x.shape
+        x = rearrange(x, 'n t d-> (n t) d')
         x = self.predictor(x)
+        x = rearrange(x, '(n t) d-> n t d', t=t)
         return x
 
     def forward(self, x):
         x = self.project(x)
         x = self.predict(x)
-        return x
+        info = {}
+
+        return x, info

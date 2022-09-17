@@ -83,3 +83,4 @@ class Transformer(nn.Module):
             attn_maps.append(attn_map)
             
         return x, attn_maps
+    

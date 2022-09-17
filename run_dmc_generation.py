@@ -1,8 +1,7 @@
 import os
 os.environ['MKL_SERVICE_FORCE_INTEL'] = '1'
-#os.environ['MUJOCO_GL'] = 'egl'
+os.environ['MUJOCO_GL'] = 'egl'#osmesa' #egl
 
-import ipdb
 from dotmap import DotMap
 import torch
 import argparse
@@ -14,8 +13,8 @@ from pathlib import Path
 from src.envs import *
 from src.models import *
 from src.common.logger import WandbAgentLogger
-from src.common.utils import set_global_seeds
-from src.common.dmc_video import VideoRecorder
+from src.common.train_utils import set_global_seeds
+from src.common.vis_utils import VideoRecorder
 from src.agents import build_agent
 
 def run(args):    
@@ -71,8 +70,7 @@ def run(args):
                         train_env=train_env,
                         eval_env=eval_env,
                         logger=logger,
-                        model=model,
-                        video_recorder=video_recorder)
+                        model=model)
 
 
     # train

@@ -2,7 +2,7 @@ import torch.nn as nn
 import torch
 from .base import BaseHead
 import numpy as np
-from src.common.train_utils import get_1d_sincos_pos_embed_from_grid, get_2d_sincos_pos_embed, get_1d_masked_input, get_3d_masked_input
+from src.common.vit_utils import get_1d_sincos_pos_embed_from_grid, get_2d_sincos_pos_embed, get_1d_masked_input, get_3d_masked_input
 from einops import rearrange, repeat
 from src.models.layers import Transformer
 

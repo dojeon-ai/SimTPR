@@ -1,11 +1,10 @@
 from .base import BaseBackbone
-from .nature import Nature
-from .de_nature import DENature
-from .impala import Impala
-from .vit import VIT
-from .drqv2_encoder import DrQv2Encoder
-
+from .cnn.nature import Nature
+from .cnn.de_nature import DENature
+from .cnn.impala import Impala
+from .cnn.dmc import DMC
+from .transformer.vit import VIT
 
 __all__ = [
-    'BaseBackbone', 'Nature', 'DENature', 'Impala', 'VIT', 'DrQv2Encoder'
+    'BaseBackbone', 'Nature', 'DENature', 'Impala', 'DMC', 'VIT'
 ]

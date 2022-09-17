@@ -1,11 +1,11 @@
-type: 'atari'
+type: 'replay'
 #data_path: '/home/nas3_userK/hojoonlee/projects/video_rl/data/atari'
 #tmp_data_path: '/home/nas3_userK/hojoonlee/projects/video_rl/data/atari'
+data_type: 'atari'
 data_path: '/data/private/video_rl/data/atari'
 tmp_data_path: '/data/private/video_rl/data/atari'
 game: 'Pong' # requires camel case
 checkpoints: [1, 25, 50]
-frames: 1
 t_step: 4
 max_size: 1000000 # 1e6
 dataset_on_gpu: False #True

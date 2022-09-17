@@ -1,15 +1,4 @@
-# dqn-nature
-backbone:
-    type: 'impala'
-    obs_shape: None # not pre-defined
-    action_size: None
-    renormalize: True
-    expansion_ratio: 2
-    init_type: None
-head:
-    type: curl
-    in_features: 3136
-    hid_features: 512
-    out_features: 512
-policy:
-    type: None
+process_type: 'stack_frame'
+defaults:
+- backbone: impala
+- head: curl

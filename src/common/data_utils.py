@@ -1,9 +1,8 @@
 import torch
 import numpy as np
-from src.common.utils import namedarraytuple
+from src.common.class_utils import namedarraytuple
 
-
-OfflineSamples = namedarraytuple("OfflineSamples", ["observation", "action", "reward", "done", "flow", "hog"])
+OfflineSamples = namedarraytuple("OfflineSamples", ["observation", "action", "reward", "done"])
 
 class CacheEfficientSampler(torch.utils.data.Sampler):
     def __init__(self, num_blocks, block_len, num_repeats=20, generator=None):
@@ -45,21 +44,7 @@ class CacheEfficientSampler(torch.utils.data.Sampler):
     def __len__(self):
         return self.num_samples()
 
-# TODO: done 처리 어떻게 할 지 생각
-def sanitize_batch(batch: OfflineSamples) -> OfflineSamples:
-    has_dones, inds = torch.max(batch.done, 0)
-    for i, (has_done, ind) in enumerate(zip(has_dones, inds)):
-        if not has_done:
-            continue
-        batch.observation[ind+1:, i] = batch.observation[ind, i]
-        batch.reward[ind+1:, i] = 0
-    return batch
-
-
-def shuffle_by_trajectory():
-    raise NotImplementedError
-
-
+    
 def grouper(iterable, n, fillvalue=None):
     "Collect data into fixed-length chunks or blocks"
     # grouper('ABCDEFG', 3, 'x') --> ABC DEF Gxx"
@@ -71,8 +56,6 @@ def shuffle_batch_dim(observations,
                       rewards,
                       actions,
                       dones,
-                      flows,
-                      hogs,
                       obs_on_disk=True,
                       chunk_num=1):
     """
@@ -88,13 +71,12 @@ def shuffle_batch_dim(observations,
     num_sources = len(observations)
     batch_allocations = [np.sort((np.arange(batch_dim) + i) % num_sources) for i in range(num_sources)]
 
-    shuffled_observations, shuffled_rewards, shuffled_actions, shuffled_dones, shuffled_flows, shuffled_hogs = [], [], [], [], [], []
+    shuffled_observations, shuffled_rewards, shuffled_actions, shuffled_dones = [], [], [], []
 
     checkpoints = list(range(num_sources))
-    for sources, shuffled, filetype in zip([observations, rewards, actions, dones, flows, hogs],
-                                           [shuffled_observations, shuffled_rewards, shuffled_actions, shuffled_dones, 
-                                            shuffled_flows, shuffled_hogs],
-                                           ["observations", "rewards", "actions", "dones", "flows", "hogs"]):
+    for sources, shuffled, filetype in zip([observations, rewards, actions, dones],
+                                           [shuffled_observations, shuffled_rewards, shuffled_actions, shuffled_dones],
+                                           ["observations", "rewards", "actions", "dones"]):
         ind_counters = [0]*num_sources
 
         for start in checkpoints[::chunk_num]:
@@ -114,7 +96,7 @@ def shuffle_batch_dim(observations,
                     ind_counters[i] += len(mapped_to_us)
 
             for i, new_array in zip(chunk, chunk_arrays):
-                if filetype in ["observations", "flows", "hogs"] and obs_on_disk:
+                if filetype in ["observations"] and obs_on_disk:
                     filename = observations[i].filename.replace(".npy", "_shuffled.npy")
                     print("Stored shuffled obs on disk at {}".format(filename))
                     np.save(filename, new_array)
@@ -122,7 +104,20 @@ def shuffle_batch_dim(observations,
                     new_array = np.load(filename, mmap_mode="r+")
                 shuffled.append(new_array)
 
-    return shuffled_observations, shuffled_rewards, shuffled_actions, shuffled_dones, shuffled_flows, shuffled_hogs
+    return shuffled_observations, shuffled_rewards, shuffled_actions, shuffled_dones
+
+
+def sanitize_batch(batch: OfflineSamples) -> OfflineSamples:
+    done_idx = torch.nonzero(batch.done==1)
+
+    # done is tracked in reverse-order to keep consistency with evaluation stage.
+    for idx in done_idx:
+        row = idx[0]
+        col = idx[1]
+        batch.observation[row, :col] = 0
+        batch.reward[row, :col] = 0
+        
+    return batch
 
 
 def get_from_dataloaders(dataloaders):
@@ -130,17 +125,13 @@ def get_from_dataloaders(dataloaders):
     rewards = [dataloader.rewards for dataloader in dataloaders]
     actions = [dataloader.actions for dataloader in dataloaders]
     dones = [dataloader.terminal for dataloader in dataloaders]
-    flows = [dataloader.flows for dataloader in dataloaders]
-    hogs = [dataloader.hogs for dataloader in dataloaders]
 
-    return observations, rewards, actions, dones, flows, hogs
+    return observations, rewards, actions, dones
 
 
-def assign_to_dataloaders(dataloaders, observations, rewards, actions, dones, flows, hogs):
-    for dl, obs, rew, act, done, flow, hog in zip(dataloaders, observations, rewards, actions, dones, flows, hogs):
+def assign_to_dataloaders(dataloaders, observations, rewards, actions, dones):
+    for dl, obs, rew, act, done, flow, hog in zip(dataloaders, observations, rewards, actions, dones):
         dl.observations = obs
         dl.rewards = rew
         dl.actions = act
         dl.terminal = done
-        dl.flows = flow
-        dl.hogs = hog

@@ -5,7 +5,7 @@ import cv2
 import copy
 from .base import *
 from multiprocessing import Process, Pipe, Value
-from src.common.utils import save__init__args
+from src.common.class_utils import save__init__args
 from gym.utils import seeding
 from gym import spaces
 
@@ -14,7 +14,6 @@ from gym import spaces
 Modifies the default AtariEnv to be closer to DeepMind's setup.
 follow mila-iqia/spr's env for the most part.
 """
-
 
 class AtariEnv(BaseEnv):
     """An efficient implementation of the classic Atari RL envrionment using the

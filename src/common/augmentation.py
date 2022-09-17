@@ -4,8 +4,8 @@ import torch.nn.functional as F
 import kornia.augmentation as aug
 
 
-####### ATARI ########
-
+#####################
+## ATARI 
 class Intensity(nn.Module):
     def __init__(self, scale):
         super().__init__()
@@ -53,8 +53,8 @@ class Augmentation(nn.Module):
         return x
 
 
-
-######### DrQ-v2 ########
+#####################
+## DMC 
 class RandomShiftsAug(nn.Module):
     def __init__(self, pad):
         super().__init__()

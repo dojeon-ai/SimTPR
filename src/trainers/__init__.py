@@ -3,7 +3,7 @@ from dotmap import DotMap
 from omegaconf import OmegaConf
 from src.common.augmentation import Augmentation
 from src.common.augmentation import RandomShiftsAug
-from src.common.utils import all_subclasses, import_all_subclasses
+from src.common.class_utils import all_subclasses, import_all_subclasses
 import_all_subclasses(__file__, __name__, BaseTrainer)
 
 TRAINERS = {subclass.get_name():subclass

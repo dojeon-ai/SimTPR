@@ -4,18 +4,19 @@ import numpy as np
 from einops import rearrange, repeat
 from .base import BaseHead
 from src.models.layers import Transformer
-from src.common.train_utils import get_1d_sincos_pos_embed_from_grid, get_2d_sincos_pos_embed
-from src.common.train_utils import get_1d_masked_input, get_3d_masked_input
+from src.common.vit_utils import get_1d_sincos_pos_embed_from_grid, get_2d_sincos_pos_embed
+from src.common.vit_utils import get_1d_masked_input, get_3d_masked_input
 
 
-class VITHead(BaseHead):
-    name = 'vit_head'
+class MAEHead(BaseHead):
+    name = 'mae_head'
     def __init__(self, 
                  obs_shape,
                  action_size,
                  patch_size,
+                 process_type,
                  t_step,
-                 enc_dim, 
+                 in_features,
                  dec_depth, 
                  dec_dim, 
                  dec_mlp_dim,
@@ -23,20 +24,26 @@ class VITHead(BaseHead):
                  emb_dropout,
                  dropout):
         super().__init__()
-        frame, channel, image_height, image_width = obs_shape
-        image_channel = frame * channel
-        patch_height, patch_width = patch_size
-
-        assert image_height % patch_height == 0 and image_width % patch_width == 0, 'Image must be divisible by the patch size.'
-        num_patches = (image_height // patch_height) * (image_width // patch_width)
-        patch_dim = image_channel * patch_height * patch_width
+        t, c, i_h, i_w = obs_shape
+        
+        assert process_type in {'indiv_frame', 'stack_frame'}
+        self.process_type = process_type
+        if process_type == 'indiv_frame':
+            image_channel = c
+        elif process_type == 'stack_frame':
+            image_channel = t * c
+   
+        p_h, p_w = patch_size
+        assert i_h % p_h == 0 and i_w % p_w == 0, 'Image must be divisible by the patch size.'
+        num_patches = (i_h // p_h) * (i_w // p_w)
+        patch_dim = image_channel * p_h * p_w
         
         self.t_step = t_step
         self.patch_size = patch_size
         self.num_patches = num_patches
         self.dec_dim = dec_dim
         
-        self.decoder_embed = nn.Linear(enc_dim, dec_dim)                
+        self.decoder_embed = nn.Linear(in_features, dec_dim)                
         self.patch_mask_token = nn.Parameter(torch.zeros(1, 1, dec_dim))
         self.spatial_embed = nn.Parameter(torch.randn(1, num_patches, dec_dim), requires_grad=False) 
         self.temporal_embed = nn.Parameter(torch.randn(1, t_step, dec_dim), requires_grad=False)
@@ -59,11 +66,11 @@ class VITHead(BaseHead):
 
         dec_spatial_embed = get_2d_sincos_pos_embed(D, int((P)**.5))
         self.spatial_embed.copy_(torch.from_numpy(dec_spatial_embed).float().unsqueeze(0))
-        self.spatial_embed.requires_grad = True
+        self.spatial_embed.requires_grad = False
 
         dec_temporal_embed = get_1d_sincos_pos_embed_from_grid(D, np.arange(int(T)))
         self.temporal_embed.copy_(torch.from_numpy(dec_temporal_embed).float().unsqueeze(0))
-        self.temporal_embed.requires_grad = True
+        self.temporal_embed.requires_grad = False
 
         # timm's trunc_normal_(std=.02) is effectively normal_(std=0.02) as cutoff is too big (2.)
         torch.nn.init.normal_(self.patch_mask_token, std=.02)
@@ -83,35 +90,53 @@ class VITHead(BaseHead):
 
     def forward(self, x, patch_mask_dict=None):
         """
-        [param] x: (N, T*(P+1), D)
+        [param] x: (n, t, d)
         """
         # separate cls-token
-        x = x[:, self.t_step:, :]
+        x = x[:, 1:, :]
         
         # embed encoded patches
         x = self.decoder_embed(x)
         
-        # restore patch-mask
-        if patch_mask_dict:
-            mask_len = self.t_step * self.num_patches - x.shape[1]            
-            mask_tokens = self.patch_mask_token.repeat(x.shape[0], mask_len, 1)            
-            x = torch.cat([x, mask_tokens], dim=1)
-            ids_restore = patch_mask_dict['patch_ids_restore']
-            x = torch.gather(x, dim=1, index=ids_restore.unsqueeze(-1).repeat(1,1,x.shape[-1]))
+        if self.process_type == 'indiv_frame':        
+            # restore patch-mask
+            if patch_mask_dict:
+                mask_len = self.t_step * self.num_patches - x.shape[1]            
+                mask_tokens = self.patch_mask_token.repeat(x.shape[0], mask_len, 1)            
+                x = torch.cat([x, mask_tokens], dim=1)
+                ids_restore = patch_mask_dict['patch_ids_restore']
+                x = torch.gather(x, dim=1, index=ids_restore.unsqueeze(-1).repeat(1,1,x.shape[-1]))
+
+            # pos_embed = 2d-spatial_embed + temporal_embed
+            spatial_embed = self.spatial_embed.repeat(1, self.t_step, 1)
+            temporal_embed = torch.repeat_interleave(self.temporal_embed, repeats=self.num_patches, dim=1)
+            pos_embed = spatial_embed + temporal_embed
+            x = x + pos_embed
         
-        # pos-embed to patches
-        spatial_embed = self.spatial_embed.repeat(1, self.t_step, 1)
-        temporal_embed = torch.repeat_interleave(self.temporal_embed, repeats=self.num_patches, dim=1)
-        pos_embed = spatial_embed + temporal_embed
-        x = x + pos_embed
+        elif self.process_type == 'stack_frame':
+            # restore patch-mask
+            if patch_mask_dict:
+                mask_len = self.num_patches - x.shape[1]
+                mask_tokens = self.patch_mask_token.repeat(x.shape[0], mask_len, 1)            
+                x = torch.cat([x, mask_tokens], dim=1)
+                ids_restore = patch_mask_dict['patch_ids_restore']
+                x = torch.gather(x, dim=1, index=ids_restore.unsqueeze(-1).repeat(1,1,x.shape[-1]))
+            
+            # pos_embed = 2d-spatial_embed 
+            pos_embed = self.spatial_embed
+            x = x + pos_embed
         
         # decoder
         x = self.emb_dropout(x)
-        x, _ = self.decoder(x)
+        x, attn_maps = self.decoder(x)
         x = self.out_norm(x)   
         
         # predictor
         x = self.patch_pred(x)
         
-        return x
+        # info
+        info = {}
+        info['attn_maps'] = attn_maps
+        
+        return x, info
     

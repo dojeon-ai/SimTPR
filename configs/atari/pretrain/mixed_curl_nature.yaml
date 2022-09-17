@@ -13,7 +13,7 @@ model_path: ''
 
 defaults:
 - _self_
-- dataloader: mixed_bn256_t1
+- dataloader: mixed_bn256_t4
 - env: atari
 - trainer: curl
 - model: nature_curl

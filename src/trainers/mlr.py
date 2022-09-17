@@ -1,7 +1,6 @@
 from .base import BaseTrainer
 from src.common.train_utils import LinearScheduler, CosineAnnealingWarmupRestarts
-from src.common.train_utils import get_random_1d_mask, get_random_3d_mask, get_3d_masked_input
-from src.common.losses import TemporalConsistencyLoss, TemporalSimilarityLoss
+from src.common.vit_utils import get_random_1d_mask, get_random_3d_mask, get_3d_masked_input
 from fractions import Fraction
 import wandb
 import torch

@@ -1,0 +1,9 @@
+type: 'impala'
+obs_shape: None
+action_size: None
+process_type: None
+channels: (16, 32, 32)
+strides: (3, 2, 2)
+expansion_ratio: 4
+norm_type: 'bn'
+init_type: None

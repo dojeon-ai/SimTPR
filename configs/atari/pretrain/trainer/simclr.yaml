@@ -1,10 +1,10 @@
 # defaults
 type: 'simclr'
-num_epochs: 10
-t_step: None
-
 obs_shape: None
 action_size: None
+t_step: None
+process_type: None
+
 aug_types: [random_shift, intensity]
 
 optimizer:
@@ -15,8 +15,9 @@ optimizer:
     eps: 0.00015
 
 # updates
-batch_size: 256
-update_freq: 2
+num_epochs: 10
+batch_size: None
+clip_grad_norm: 1.0
 temperature: 0.1
 
 # logging

@@ -1,30 +1,4 @@
-# VIT-S
-backbone:
-    type: 'vit'
-    obs_shape: None
-    action_size: None
-    t_step: None
-    patch_size: [14, 14]
-    pool: 'identity'
-    enc_depth: 4
-    enc_dim: 192
-    enc_mlp_dim: 768
-    enc_heads: 3
-    emb_dropout: 0.0
-    dropout: 0.0
-    renormalize: False
-head:
-    type: 'vit_head'
-    obs_shape: None
-    action_size: None
-    t_step: None
-    patch_size: [14, 14]
-    enc_dim: 192
-    dec_depth: 2
-    dec_dim: 192
-    dec_mlp_dim: 768
-    dec_heads: 3
-    emb_dropout: 0.0
-    dropout: 0.0
-policy:
-    type: None
+process_type: 'indiv_frame'
+defaults:
+- backbone: vit
+- head: mae

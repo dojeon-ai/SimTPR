@@ -1,7 +1,7 @@
 from .base import BaseBuffer
-from .dqn_buffer import DQNBuffer
 from .per_buffer import PERBuffer
+from .ddpg_buffer import DDPGBuffer
 
 __all__ = [
-    'BaseBuffer', 'DQNBuffer', 'PERBuffer'
+    'BaseBuffer', 'DDPGBuffer', 'PERBuffer'
 ]
