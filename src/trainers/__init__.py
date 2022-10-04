@@ -12,7 +12,9 @@ TRAINERS = {subclass.get_name():subclass
 
 def build_trainer(cfg,
                   device,
-                  dataloader,
+                  train_loader,
+                  eval_act_loader,
+                  eval_rew_loader,
                   logger,
                   model):
     
@@ -33,7 +35,9 @@ def build_trainer(cfg,
     trainer = TRAINERS[trainer_type]
     return trainer(cfg=cfg,
                    device=device,
-                   dataloader=dataloader,
+                   train_loader=train_loader,
+                   eval_act_loader=eval_act_loader,
+                   eval_rew_loader=eval_rew_loader,
                    logger=logger,
                    aug_func=aug_func,
                    model=model)

@@ -1,15 +1,14 @@
 from .base import BaseTrainer
-from src.common.train_utils import LinearScheduler, CosineAnnealingWarmupRestarts
-from src.common.vit_utils import get_random_1d_mask, get_random_3d_mask, get_3d_masked_input
-from fractions import Fraction
-import wandb
+from src.common.losses import ConsistencyLoss
+from src.common.train_utils import LinearScheduler
+from src.common.vit_utils import get_random_1d_mask, get_1d_masked_input
+from src.common.vit_utils import get_random_3d_mask, get_3d_masked_input, restore_masked_input
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.optim as optim
 from einops import rearrange, repeat
-import random
 import copy
+import wandb
 import tqdm
 
 
@@ -18,223 +17,153 @@ class MLRTrainer(BaseTrainer):
     def __init__(self,
                  cfg,
                  device,
-                 dataloader,
+                 train_loader,
+                 eval_act_loader,
+                 eval_rew_loader,
                  logger, 
                  aug_func,
                  model):
         
-        super().__init__()  
-        self.cfg = cfg  
-        self.device = device
-        self.dataloader = dataloader
-        self.logger = logger
-
-        self.aug_func = aug_func.to(self.device)
-        self.model = model.to(self.device)
-        self.target_model = copy.deepcopy(self.model).to(self.device)
-
-        self.optimizer = self._build_optimizer(cfg.optimizer)
-        self.lr_scheduler = self._build_scheduler(self.optimizer, cfg.num_epochs, cfg.scheduler)
-
-        self.cfg.patch_size = self.model.head.patch_size
-
-        
-
-    def _build_optimizer(self, optimizer_cfg):
-        optimizer_type = optimizer_cfg.pop('type')
-        if optimizer_type == 'adam':
-            return optim.Adam(self.model.parameters(), 
-                              **optimizer_cfg)
-        elif optimizer_type == 'adamw':
-            return optim.AdamW(self.model.parameters(), 
-                              **optimizer_cfg)
-        else:
-            raise ValueError
-
-    def _build_scheduler(self, optimizer, num_epochs, scheduler_cfg):
-        return CosineAnnealingWarmupRestarts(optimizer=optimizer,
-                                             first_cycle_steps=num_epochs,
-                                             **scheduler_cfg)
+        super().__init__(cfg, device, 
+                         train_loader, eval_act_loader, eval_rew_loader,
+                         logger, aug_func, model)  
+        self.target_model = copy.deepcopy(self.model).to(self.device)        
+        update_steps = len(self.train_loader) * self.cfg.num_epochs
+        cfg.tau_scheduler.step_size = update_steps
+        self.tau_scheduler = LinearScheduler(**cfg.tau_scheduler)
     
-    def _update_moving_average(self):
-        for online, target in zip(self.model.parameters(), self.target_model.parameters()):
-            target.data = self.cfg.tau * target.data + (1 - self.cfg.tau) * online.data
-    
-    def forward_online_model(self, obs, act, done):
-
-        # reshape aug_obs to patches
-        patch_height, patch_width = self.cfg.patch_size
-        batch, t_step, channel, image_height, image_width = obs.shape
-
-        num_patches = (image_height // patch_height) * (image_width // patch_width)
-
-        patch = rearrange(obs, 'n t c (h p1) (w p2) -> n (t h w) (p1 p2 c)', 
-                          p1 = patch_height, p2 = patch_width)
-        
-        # construct mask data for vit-encoder
-        video_shape = (batch, t_step, num_patches)
-
-        patch_ids_keep, patch_mask, patch_ids_restore = get_random_3d_mask(video_shape, self.cfg.patch_mask_ratio, self.cfg.patch_mask_type)
-        
-        # to device
-        patch_ids_keep = patch_ids_keep.to(self.device)
-        patch_mask = patch_mask.to(self.device)
-        patch_ids_restore = patch_ids_restore.to(self.device)
-        
-        mask = {
-            'patch_mask_type': self.cfg.patch_mask_type,
-            'patch_ids_keep': patch_ids_keep,
-            'patch_ids_restore': patch_ids_restore,
-        }
-        
-        # masking and restore into images
-        patch = rearrange(patch, 'n (t p) d -> n t p d', t = t_step, p = num_patches)
-        original_size = (patch.shape[0], patch.shape[1] * patch.shape[2], patch.shape[3])
-        patch = get_3d_masked_input(patch, mask['patch_ids_keep'], mask['patch_mask_type'])
-        zero_padding_size = (original_size[0], original_size[1] - patch.shape[1], original_size[2])
-        mask_tokens = torch.zeros(zero_padding_size).to(patch.device)
-        patch = torch.cat([patch, mask_tokens], dim=1)
-        patch = torch.gather(patch, dim=1, index=mask['patch_ids_restore'].unsqueeze(-1).repeat(1,1,patch.shape[-1]).to(patch.device))
-
-
+    def compute_loss(self, obs, act, rew, done):
+        ####################
         # augmentation
-        x = rearrange(patch, 'n (t p1 p2) (d1 d2 c) -> n (t c) (p1 d1) (p2 d2)', t = t_step, p1= image_height // patch_height, p2 = image_width // patch_width, \
-                            c = channel, d1 = patch_height, d2 = patch_width)
-        x = self.aug_func(x)
-
-        x = rearrange(x, 'n (t c) h w -> n t c h w', t=t_step) 
-
-        done_mask = torch.zeros((done.shape[0], t_step), device=done.device)
-        done = done.float()
-        done_idx = torch.nonzero(done==1)
-
-        # done is masked in reverse-order is required to keep consistency with evaluation stage.
-        for idx in done_idx:
-            row = idx[0]
-            col = idx[1]
-            done_mask[row, :col+1] = 1
+        n, t, f, c, h, w = obs.shape
         
-        x = x * (1-rearrange(done_mask, 'n t -> n t 1 1 1'))      
-
-        # import pdb; pdb.set_trace()
-
-        x = rearrange(x, 'n t c h w -> (n t) c h w') 
-
-        x = self.model.backbone(x)
-
-        x = rearrange(x, '(n t) d -> n t d', n=batch, t= t_step)
-
-        x = {
-            'patch': x,
-            'act': act,
-            'done': done,
-        }
-
-        x = self.model.head(x, True)
-
-        return x
-
-
-    def _compute_similarity(self, obs, act, done):
-        # online network
-        N, T, S, C, H, W = obs.shape
-        obs = obs.reshape(N, T, S*C, H, W) 
-        obs = obs.float() / 255.0
-        p_o = self.forward_online_model(obs, act[:, :-1], done[:, :-1])
-
-        # target network
-        obs2 = rearrange(obs, 'n t c h w -> (n t) c h w')
-        aug_tgt = self.aug_func(obs2)
-        y_t = self.target_model.backbone(aug_tgt)
-        y_t = self.target_model.head.projection(y_t)
-        z_t = self.target_model.head.project(y_t)
-
-        z = torch.cat((p_o, z_t), dim = 0)
-
-        # loss
-        sim_fn = TemporalSimilarityLoss(num_trajectory=N,
-                                        t_step=T,  
-                                        device=self.device)
-
-
-        #import pdb; pdb.set_trace()
-
-        positive_sim, negative_sim = sim_fn(z, done)
-
+        # weak augmentation to both online & target
+        x = obs / 255.0
+        x = rearrange(x, 'n t f c h w -> n (t f c) h w')
+        x1, x2 = self.aug_func(x), self.aug_func(x)
+        x = torch.cat([x1, x2], axis=0)        
+        x = rearrange(x, 'n (t f c) h w -> n t f c h w', t=t, f=f)
+        act = torch.cat([act, act], axis=0)
         
-
-        return positive_sim, negative_sim
-
-
-    def compute_loss(self, obs, act, done):
-        # obs
-        N, T, S, C, H, W = obs.shape
-        obs = rearrange(obs, 'n t s c h w -> n t (s c) h w')
-        obs = obs.float() / 255.0
+        # strong augmentation to online: (masking)
+        assert self.cfg.mask_type in {'pixel', 'latent'}
+        if self.cfg.mask_type == 'latent':
+            x_o = x
+            x_t = x
         
-        # online network
-        p_o = self.forward_online_model(obs, act[:, :-1], done[:, :-1])
+        elif self.cfg.mask_type == 'pixel':
+            ph, pw = self.cfg.patch_size[0], self.cfg.patch_size[1]
+            nh, nw = (h // ph), (w//pw)
+            np = nh * nw
+            
+            # generate random-mask
+            video_shape = (2*n, t, np)
+            ids_keep, _, ids_restore = get_random_3d_mask(video_shape, 
+                                                          self.cfg.mask_ratio,
+                                                          self.cfg.mask_strategy)
+            ids_keep = ids_keep.to(x.device)
+            ids_restore = ids_restore.to(x.device)
+            
+            # mask & restore
+            x_o = rearrange(x, 'n t f c (nh ph) (nw pw) -> n t (nh nw) (ph pw f c)', ph=ph, pw=pw)
+            x_o = get_3d_masked_input(x_o, ids_keep, self.cfg.mask_strategy)
+            x_o = restore_masked_input(x_o, ids_restore)
+            x_o = rearrange(x_o, 'n (t nh nw) (ph pw f c) -> n t f c (nh ph) (nw pw)', 
+                            t=t, f=f, c=c, nh=nh, nw=nw, ph=ph, pw=pw)
+            
+            x_t = x
         
-        # target network
+        #################
+        # forward
+        # online encoder
+        y_o, _ = self.model.backbone(x_o)        
+        h_o = self.model.head.dec_in(y_o)
+        
+        if self.cfg.mask_type == 'pixel':
+            e_o = self.model.head.decode(h_o, act) # t=0: identity, t=1...T: predicted
+                
+        elif self.cfg.mask_type == 'latent':
+            video_shape = (2*n, t)
+            ids_keep, _, ids_restore = get_random_1d_mask(video_shape, self.cfg.mask_ratio)
+            ids_keep = ids_keep.to(x.device)
+            ids_restore = ids_restore.to(x.device)
+            
+            hm_o = get_1d_masked_input(h_o, ids_keep)
+            mask_tokens = self.model.head.mask_token.repeat(2*n, t-hm_o.shape[1], 1)
+            hm_o = restore_masked_input(hm_o, ids_restore, mask_tokens)
+            
+            # decode on the masked latent
+            e_o = self.model.head.decode(hm_o, act) # t=0: identity, t=1...T: predicted
+        
+        z_o = self.model.head.project(e_o)
+        p_o = self.model.head.predict(z_o)
+        h1_o, h2_o = h_o.chunk(2)
+        p1_o, p2_o = p_o.chunk(2)
+        
+        # target encoder
         with torch.no_grad():
-            obs = rearrange(obs, 'n t c h w -> (n t) c h w')
-            aug_tgt = self.aug_func(obs)
-            y_t = self.target_model.backbone(aug_tgt)
-            y_t = self.target_model.head.projection(y_t)
-            z_t = self.target_model.head.project(y_t)
-            
-        loss_fn = TemporalConsistencyLoss(num_trajectory=N, 
-                                          t_step=T, 
-                                          device=self.device)
+            y_t, _ = self.target_model.backbone(x_t)
+            h_t = self.model.head.dec_in(y_t)
+            z_t = self.target_model.head.project(h_t)
+            h1_t, h2_t = h_t.chunk(2)
+            z1_t, z2_t = z_t.chunk(2)
         
-        loss = 1 + loss_fn(p_o, z_t, done)
+        # action prediction
+        # mlr: (h1_o, h2_t) vs rssm: (z1_o, z2_t)
+        act1_pred = self.model.head.act_predict(h1_o[:, :-1, :], h2_t[:, 1:, :])
+        act2_pred = self.model.head.act_predict(h2_o[:, :-1, :], h1_t[:, 1:, :])
+
+        #################
+        # loss
+        # self-predictive loss
+        sp_loss_fn = ConsistencyLoss()
+        p1_o, p2_o = rearrange(p1_o, 'n t d -> (n t) d'), rearrange(p2_o, 'n t d -> (n t) d')
+        z1_t, z2_t = rearrange(z1_t, 'n t d -> (n t) d'), rearrange(z2_t, 'n t d -> (n t) d')
+
+        sp_loss = 0.5 * (sp_loss_fn(p1_o, z2_t) + sp_loss_fn(p2_o, z1_t))
+        sp_loss = torch.mean(sp_loss)
+
+        # idm loss
+        idm_loss_fn = nn.CrossEntropyLoss()
+        act1_pred = rearrange(act1_pred, 'n t d -> (n t) d')
+        act2_pred = rearrange(act2_pred, 'n t d -> (n t) d')
         
-        return loss
+        act = act[:, :-1]
+        act = rearrange(act, 'n t -> (n t)')
+        act1, act2 = act.chunk(2)
+        
+        idm_loss = 0.5 * (idm_loss_fn(act1_pred, act1) + idm_loss_fn(act2_pred, act2))
+
+        loss = sp_loss + self.cfg.idm_lmbda * idm_loss
+        
+        ###############
+        # logs
+        # quantitative
+        pos_idx = torch.eye(p1_o.shape[0], device=p1_o.device)
+        sim = F.cosine_similarity(p1_o.unsqueeze(1), z2_t.unsqueeze(0), dim=-1)
+        pos_sim = (torch.sum(sim * pos_idx) / torch.sum(pos_idx))
+        neg_sim = (torch.sum(sim * (1-pos_idx)) / torch.sum(1-pos_idx))
+        pos_neg_diff = pos_sim - neg_sim
+        
+        # qualitative
+        # (n, t, f, c, h, w) -> (t, c, h, w)
+        masked_frames = x_o[0, :, 0, :, :, :]
+        target_frames = x_t[0, :, 0, :, :, :]
+        
+        log_data = {'loss': loss.item(),
+                    'sp_loss': sp_loss.item(),
+                    'idm_loss': idm_loss.item(),
+                    'pos_sim': pos_sim.item(),
+                    'neg_sim': neg_sim.item(),
+                    'pos_neg_diff': pos_neg_diff.item(),
+                    'masked_frames': wandb.Image(masked_frames),
+                    'target_frames': wandb.Image(target_frames)}
+        
+        return loss, log_data
         
 
-    def train(self):
-        self.model.train()
-        self.target_model.train()
-        loss, t = 0, 0
-        for e in range(1, self.cfg.num_epochs+1):
-            for batch in tqdm.tqdm(self.dataloader):         
+    def update(self, obs, act, rew, done):
+        tau = self.tau_scheduler.get_value()
+        for online, target in zip(self.model.parameters(), self.target_model.parameters()):
+            target.data = tau * target.data + (1 - tau) * online.data
 
-                log_data = {}
-
-                # forward
-                obs = batch.observation.to(self.device)
-                act = batch.action.to(self.device)
-                done = batch.done.to(self.device)
-                _loss = self.compute_loss(obs, act, done)
-                loss += _loss
-                
-                # backward
-                if (t % self.cfg.update_freq == 0) and (t>0):
-                    loss /= self.cfg.update_freq
-                    self.optimizer.zero_grad()
-                    loss.backward()
-                    self.optimizer.step()
-                    self._update_moving_average()
-                    log_data['loss'] = loss.item()
-                    loss = 0.0
-
-                if t % self.cfg.eval_every == 0:
-                    with torch.no_grad():
-                        positive_sim, negative_sim = self._compute_similarity(obs, act, done)
-                    log_data['positive_sim'] = positive_sim.item()
-                    log_data['negative_sim'] = negative_sim.item()
-                    log_data['pos_neg_diff'] = positive_sim.item() - negative_sim.item()
-                
-                    
-                # log
-                self.logger.update_log(**log_data)
-                if t % self.cfg.log_every == 0:
-                    self.logger.write_log()
-
-                # proceed
-                t += 1
-            
-            if e % self.cfg.save_every == 0:
-                self.logger.save_state_dict(model=self.model, epoch=e)
-
-            self.lr_scheduler.step()

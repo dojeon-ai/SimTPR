@@ -2,7 +2,6 @@
 type: 'mae'
 obs_shape: None
 action_size: None
-process_type: None
 t_step: None
 patch_size: None
 num_patches: None

@@ -1,9 +1,9 @@
-# OT-Rainbow
-project_name: 'mlr'
+project_name: 'atari_pretrain'
 entity: 'draftrec'
-group_name: 'mlr_training'
-exp_name: 'mlr_test_lr3e-4_wd1e-2_masking50'
-device: 2
+group_name: 'test'
+exp_name: 'mlr_impala'
+device: cuda:0
+debug: True
 seed: 0
 
 # pretrained-backbone
@@ -13,7 +13,7 @@ model_path: ''
 
 defaults:
 - _self_
-- dataloader: mixed_bn256_t4
+- dataloader: lightweight
 - env: atari
 - trainer: mlr
 - model: impala_mlr

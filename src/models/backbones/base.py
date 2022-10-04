@@ -18,3 +18,7 @@ class BaseBackbone(nn.Module, metaclass=ABCMeta):
         [return] x (torch.Tensor): (n, t, d)
         """
         pass
+    
+    @property
+    def output_dim(self):
+        pass

@@ -6,6 +6,7 @@ import wandb
 import itertools
 import multiprocessing as mp
 from multiprocessing import Pool
+from src.common.class_utils import *
 from src.envs.atari import *
 from run_pretrain import run
 import numpy as np
@@ -15,12 +16,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(allow_abbrev=False)
     parser.add_argument('--group_name',type=str,   default='test')
     parser.add_argument('--exp_name',     type=str,    default='test')
-    parser.add_argument('--mode',         type=str,    choices=['test','full', '1', '2', '3', '4'])
+    parser.add_argument('--mode',         type=str,    choices=['test','full'])
     parser.add_argument('--config_dir',   type=str,    default='atari/pretrain')
     parser.add_argument('--config_name',  type=str,    default='mixed_curl_impala') 
-    parser.add_argument('--use_artifact', type=bool,    default=False)
-    parser.add_argument('--artifact_name',type=str,     default='') # simclr
-    parser.add_argument('--model_path',   type=str,     default='') # 0/8/model.pth
+    parser.add_argument('--debug',        type=str2bool,   default=True)
+    parser.add_argument('--use_artifact', type=str2bool,   default=False)
+    parser.add_argument('--artifact_name',type=str,    default='') # simclr
+    parser.add_argument('--model_path',   type=str,    default='') # 0/8/model.pth
     parser.add_argument('--num_seeds',     type=int,   default=1)
     parser.add_argument('--num_devices',   type=int,   default=4)
     parser.add_argument('--num_exp_per_device',  type=int,  default=1)
@@ -32,22 +34,13 @@ if __name__ == '__main__':
     num_devices = args.pop('num_devices')
     num_exp_per_device = args.pop('num_exp_per_device')
     pool_size = num_devices * num_exp_per_device 
+    debug = args.pop('debug')
     
     # mode
     mode = args.pop('mode')
     if mode == 'test':
-        games = ['alien', 'assault', 'breakout', 'frostbite', 
-                  'kangaroo', 'ms_pacman', 'pong', 'qbert']
-
-    if mode == '1':
-        games = _games[:8]
-    elif mode == '2':
-        games = _games[8:16]
-    elif mode == '3':
-        games = _games[16:24]
-    elif mode == '4':
-        games = _games[24:26]
-        
+        games = ['assault', 'asterix', 'boxing', 'frostbite', 
+                 'demon_attack', 'gopher', 'seaquest', 'krull']
         
     # create configurations for child run
     experiments = []
@@ -63,8 +56,8 @@ if __name__ == '__main__':
         exp['overrides'].append('exp_name=' + exp_name)
         exp['overrides'].append('seed=' + str(seed))
         exp['overrides'].append('dataloader.game=' + str(camel_game))
-        exp['overrides'].append('env.game=' + str(game))
         exp['overrides'].append('device=' + 'cuda:' + str(device_id))
+        exp['overrides'].append('debug=' + str(debug))
         
         # start from pretrain if use artifact
         use_artifact = exp.pop('use_artifact')

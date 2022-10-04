@@ -1,15 +1,6 @@
-### 0. Update Notes (09.18)
+### 0. Update Notes for API (10.04)
 ```
-1. [DataLoader]: t_step and frame_stack is integrated to one arugment.
-   - (before) (n, t, f, c, h, w)
-   - (after) (n, t, c, h, w) 
-     n: batch_size
-     t: time_step = frame_stack
-     c: channel
-     h: height
-     w: width
-    
-2. [Model]: Trainer Model and Agent Model is separated.
+1. [Model]: Trainer Model and Agent Model is separated.
    - Each model components' input & output shape is modified & fixed.
    - Each component always output information dictionary (for debugging or vis purpose).
      | TrainerModel:
@@ -32,27 +23,19 @@
            | x, info = policy(x)
            | return x, info
            
-3. [Model & Trainer]: Argument process-type is introduced. 
-   - process_type == stack_frame: backbone encode stacked frames.
-      - backbone: (n,t,d) -> (n,1,d)
-      - neck: (n,1,d)->(n,d)
-   - process_type == indiv_frame: backbone encode frames individually.
-      - backbone: (n, t, d) -> (n, t, d)
-      - neck: (n,t,d)->(n,d) (e.g., LSTM, concat, pool) 
-      
-4. [Model]: (head & neck)'s input shape is not pre-defined. 
+2. [Model]: (head & neck)'s input shape is not pre-defined. 
    def build_model(cfg):
      ...
      fake_obs = torch.zeros((1, *backbone_cfg['obs_shape']))
      out, _ = backbone(fake_obs)
      output_dim = out.shape[-1]
      
-     head_cfg['in_features'] = output_dim
-     neck_cfg['in_features'] = output_dim
+     head_cfg['in_dim'] = output_dim
+     neck_cfg['in_dim'] = output_dim
      ...
     
-5. [Trainer]: all trainers share base train function.
-   - Each trainer is required to write its own loss computation and evaluation function.
+3. [Trainer]: all trainers share base train function.
+   - Each trainer is required to write its own loss computation custom update function.
        @abstractmethod
        def compute_loss(self, obs, act, rew, done) -> Tuple[torch.Tensor, dict]:
           pass
@@ -62,23 +45,37 @@
        def update(self, obs, act, rew, done):
           pass
     
-       @abstractmethod
-       def evaluate(self, obs, act, rew, done) -> dict:
-          pass
+4. [Trainer]: when pre-training, we use the identical evaluation protocol from Zhang et al.
+   - Light-weight probing of unsupervised RL: https://arxiv.org/abs/2208.12345
+     
+     def evaluate(self) -> dict:
+        eval_logs = {}
+        rew_eval_logs = self.probe_reward()
+        act_eval_logs = self.probe_action()
+        eval_logs.update(rew_eval_logs)
+        eval_logs.update(act_eval_logs)
+
+        return eval_logs
    
-6. [Logger]: If you would like to log anything in pre-training (e.g., wandb.Image), 
-     just put it inside to the dictionary of compute_loss or evaluate function.
-     |class TrainerLogger:
-         def __init__(self):
-            self.average_meter_set = AverageMeterSet()
-            self.media_set = {}
-    
-         def update_log(self, **kwargs):
-            for k, v in kwargs.items():
-               if isinstance(v, float) or isinstance(v, int):
-                  self.average_meter_set.update(k, v)
-               else:
-                  self.media_set[k] = v
+5. [Trainer]: Append debugging option. (default: debug=True)
+    When debug mode, we train data on a single batch.
+     
+    def debug(self):
+        for batch in tqdm.tqdm(self.train_loader):   
+            # forward
+            loss, train_logs = self.compute_loss(obs, act, rew, done)
+
+            # backward
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
+            self.update(obs, act, rew, done)
+
+            break
+
+        eval_logs = self.evaluate()
+        
+    - before merge or integration, you can test the various pre-trainer through scripts/test_pretrain.sh
 ```
 
 ### 1. Project Structure
@@ -176,15 +173,19 @@ bash download_atari_replay_data.sh
 
 ### 4. TODO
 ```
-1. Modify MLR (code & config) with (model & trainer)'s new API
-2. Multiprocessing code to bash script (why? each PPO agent requires multiprocessing).
-3. Save model's weights to a local folder not in an artifact.
-4. Set environment's observation shape to (n,t,c,h,w).
-5. Modify a base agent's API which can integrate Rainbow, DDPG, PPO.
-6. Implement various necks. (e.g., LSTM, pool).
-7. Integrate weight init & augmentation function.
-8. Modify DMC with a new API.
-9. Implement test-code to check the safety of a code-update.
-10. Integrate PPO & ProcGen environment.
-11. Check the performance of Rainbow + ATARI, DDPG + DMC, PPO + ProcGen.
+1. Multiprocessing code to bash script (why? each PPO agent requires multiprocessing).
+2. Save model's weights to a local folder not in an artifact.
+3. Modify a base agent's API which can integrate Rainbow, DDPG, PPO.
+4. Implement various necks. (e.g., LSTM, pool).
+5. Integrate weight init & augmentation function.
+6. Modify DMC with a new API.
+7. Integrate PPO & ProcGen environment.
+8. Check the performance of Rainbow + ATARI, DDPG + DMC, PPO + ProcGen.
+```
+
+
+### 5. Done
+```
+1. Implement RSSM (architecture from Light-weight probing & SGI)
+2. Implement MLR (can be viewed as a BERT version of RSSM)
 ```

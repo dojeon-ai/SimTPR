@@ -1,4 +1,3 @@
-process_type: 'stack_frame'
 defaults:
 - backbone: impala
 - head: simclr

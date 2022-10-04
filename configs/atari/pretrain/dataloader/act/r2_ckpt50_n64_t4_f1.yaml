@@ -1,0 +1,6 @@
+runs: [2]
+checkpoints: [50]
+batch_size: 64
+t_step: 4
+frame: 1
+max_size: 100000 # 1e6

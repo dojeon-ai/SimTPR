@@ -3,8 +3,11 @@ import torch
 import numpy as np
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
+from src.common.vit_utils import get_1d_sincos_pos_embed_from_grid
 
 
+#################################################
+# Transformer
 class PreNorm(nn.Module):
     def __init__(self, dim, fn):
         super().__init__()
@@ -52,7 +55,7 @@ class Attention(nn.Module):
         q, k, v = map(lambda t: rearrange(t, 'n t (h d) -> n h t d', h = self.heads), qkv)
 
         dots = torch.matmul(q, k.transpose(-1, -2)) * self.scale
-        if attn_mask:
+        if attn_mask is not None:
             dots.masked_fill_(attn_mask.unsqueeze(1).bool(), -1e9)
         
         attn = self.attend(dots)
@@ -83,4 +86,100 @@ class Transformer(nn.Module):
             attn_maps.append(attn_map)
             
         return x, attn_maps
+    
+    
+#################################################
+# Decoder
+class GRUDet(nn.Module):
+    def __init__(self, obs_shape, action_size, hid_dim, num_layers):
+        super().__init__()
+        act_dim = hid_dim // 4
+        obs_act_dim = hid_dim + act_dim
+        self.act_embedder = nn.Embedding(action_size, act_dim)
+        self.norm_in = nn.LayerNorm(obs_act_dim)
+        self.num_layers = num_layers
+        self.decoder = nn.GRU(input_size=obs_act_dim, 
+                              hidden_size=hid_dim,
+                              num_layers=num_layers,
+                              batch_first=True,
+                              bidirectional=False)
+
+    def forward(self, x, a, h):
+        """
+        [params] x: (n, t, d)
+        [params] a: (n, t)
+        [params] h: (n_l, n, d)
+        """
+        n, t, d = x.shape
+        a = self.act_embedder(a)
+        x = torch.cat([x, a], dim=(-1))
+        x = self.norm_in(x)
+        x, h = self.decoder(x, h)
+        return (
+         x, h)
+
+
+class ConvDet(nn.Module):
+    def __init__(self, obs_shape, action_size, hid_dim, num_layers, in_dim=3136):
+        super().__init__()
+        self.h, self.w = (7, 7)
+        in_channel = in_dim // (self.h * self.w)
+        self.action_size = action_size
+        conv1 = nn.Conv2d(in_channel + action_size, hid_dim, 3, 1, 1)
+        conv2 = nn.Conv2d(hid_dim, in_channel, 3, 1, 1)
+        self.decoder = nn.Sequential(conv1, 
+                                     init_normalization(channels=hid_dim, norm_type='bn'), 
+                                     nn.ReLU(), 
+                                     conv2)
+
+    def forward(self, x, a):
+        """
+        [params] x: (n, t, d)
+        [params] a: (n, t)
+        """
+        n, t, d = x.shape
+        act_one_hot = F.one_hot((a.detach()), num_classes=(self.action_size))
+        act_one_hot = rearrange(act_one_hot, 'n t a_d -> n t a_d 1 1')
+        act_one_hot = act_one_hot.repeat((1, 1, 1, self.h, self.w))
+        x = rearrange(x, 'n t (c h w) -> n t c h w', h=(self.h), w=(self.w))
+        x = torch.cat([x, act_one_hot], dim=2)
+        x = rearrange(x, 'n t c h w -> (n t) c h w')
+        x = self.decoder(x)
+        x = rearrange(x, '(n t) c h w -> n t (c h w)', t=t)
+        return x
+
+
+class TransDet(nn.Module):
+    def __init__(self, obs_shape, action_size, hid_dim, num_layers):
+        super().__init__()
+        num_heads = hid_dim // 64
+        mlp_dim = hid_dim * 4
+        max_t_step = 256
+        self.norm_in = nn.LayerNorm(hid_dim)
+        self.act_embedder = nn.Embedding(action_size, hid_dim)
+        self.decoder = Transformer(dim=hid_dim, 
+                                   depth=num_layers,
+                                   heads=num_heads,
+                                   mlp_dim=mlp_dim,
+                                   dropout=0.0)
+        self.pos_embed = nn.Parameter((torch.randn(1, max_t_step, hid_dim)), requires_grad=False)
+        pos_embed = get_1d_sincos_pos_embed_from_grid(hid_dim, np.arange(max_t_step))
+        self.pos_embed.copy_(torch.from_numpy(pos_embed).float().unsqueeze(0))
+
+    def forward(self, x, a, attn_mask=None):
+        """
+        [params] x: (n, t, d)
+        [params] a: (n, t)
+        [returns] a_x: (n, 2*t, d)
+        """
+        n, t, d = x.shape
+        a = self.act_embedder(a)
+        x = x + self.pos_embed[:, :t, :]
+        a = a + self.pos_embed[:, :t, :]
+        x_a = torch.zeros((n, 2 * t, d), device=(x.device))
+        x_a[:, torch.arange(t) * 2, :] += x
+        x_a[:, torch.arange(t) * 2 + 1, :] += a
+        x_a = self.norm_in(x_a)
+        x_a, _ = self.decoder(x_a, attn_mask=attn_mask)
+        return x_a
     

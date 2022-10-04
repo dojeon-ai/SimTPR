@@ -8,9 +8,11 @@ import tqdm
 import numpy as np
 import torch
 from torch.utils.data import DataLoader, Dataset
+import torchvision.transforms as T
 from .base import BaseLoader
 from src.envs.atari import AtariEnv
 from src.common.data_utils import *
+from einops import rearrange
 
 
 class ReplayDataset(Dataset):
@@ -19,10 +21,12 @@ class ReplayDataset(Dataset):
                  data_path: Path,
                  tmp_data_path: Path,
                  game: str,
+                 run: int,
                  checkpoint: int,
+                 frame: int,
                  t_step: int,
                  max_size: int,
-                 full_action_set: bool,
+                 minimal_action_set: bool,
                  dataset_on_gpu: bool,
                  dataset_on_disk: bool,
                  device: str) -> None:
@@ -33,7 +37,7 @@ class ReplayDataset(Dataset):
         assert not (dataset_on_disk and dataset_on_gpu)
         filetypes = ['observation', 'action', 'reward', 'terminal']
         for i, filetype in enumerate(filetypes):
-            filename = Path(data_path + '/' + f'{game}/{filetype}_{checkpoint}.gz')
+            filename = Path(data_path + '/' + f'{game}/{filetype}_{run}_{checkpoint}.gz')
             print(f'Loading {filename}')
                         
             # generate .npy data for obs for fast mmap_read
@@ -66,9 +70,9 @@ class ReplayDataset(Dataset):
                 del data__
                 data_ = torch.from_numpy(data___)                            
             
-            if ((filetype == 'action') and (data_type == 'atari') and (full_action_set)):
+            if ((filetype == 'action') and (data_type == 'atari') and (not minimal_action_set)):
                 action_mapping = dict(zip(data_.unique().numpy(),
-                                          AtariEnv(re.sub(r'(?<!^)(?=[A-Z])', '_', game).lower()).ale.getMinimalActionSet()))
+                                          AtariEnv(game).ale.getMinimalActionSet()))
                 data_.apply_(lambda x: action_mapping[x])
                 
             if dataset_on_gpu:
@@ -79,21 +83,22 @@ class ReplayDataset(Dataset):
             setattr(self, filetype, data_)
         
         self.game = game
+        self.f = frame
         self.t = t_step
         self.size = min(self.action.shape[0], max_size)
-        self.effective_size = (self.size - self.t + 1)
+        self.effective_size = (self.size - self.f - self.t + 1)
 
     def __len__(self) -> int:
         return self.effective_size
 
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         time_ind = index % self.effective_size
-        sl = slice(time_ind, time_ind+self.t)
+        sl = slice(time_ind, time_ind + self.t + (self.f-1))
         if self.dataset_on_disk:
             obs = torch.from_numpy(self.observation[sl])
         else:
             obs = (self.observation[sl])
-
+                
         return tuple([obs,
                      self.action[sl],
                      self.reward[sl],
@@ -106,26 +111,33 @@ class MultiReplayDataset(Dataset):
                 data_path: Path,
                 tmp_data_path: Path, 
                 game: str,
+                runs: List[int],
                 checkpoints: List[int],
+                frame: int,
                 t_step: int,
                 max_size: int,
-                full_action_set: bool,
+                minimal_action_set: bool,
                 dataset_on_gpu: bool,
                 dataset_on_disk: bool,
                 device: str) -> None:
         
-        self.datasets =[ReplayDataset(data_type,
-                                      data_path,
-                                      tmp_data_path,
-                                      game,
-                                      ckpt,
-                                      t_step,
-                                      max_size,
-                                      full_action_set,
-                                      dataset_on_gpu,
-                                      dataset_on_disk,
-                                      device) for ckpt in checkpoints]
-
+        datasets = []
+        for run in runs:
+            for ckpt in checkpoints:
+                datasets.append(ReplayDataset(data_type,
+                                              data_path,
+                                              tmp_data_path,
+                                              game,
+                                              run,
+                                              ckpt,
+                                              frame,
+                                              t_step,
+                                              max_size,
+                                              minimal_action_set,
+                                              dataset_on_gpu,
+                                              dataset_on_disk,
+                                              device))
+        self.datasets = datasets
         self.num_blocks = len(self.datasets)
         self.block_len = len(self.datasets[0])
 
@@ -145,57 +157,73 @@ class ReplayDataLoader(BaseLoader):
                  data_path: Path,
                  tmp_data_path: Path,
                  game: str,
+                 runs: List[int],
                  checkpoints: List[int],
+                 frame: int,
                  t_step: int, # length of the trajectory to predict
                  max_size: int,
                  dataset_on_gpu: bool,
                  dataset_on_disk: bool,
                  batch_size: int,
-                 full_action_set: bool,
+                 minimal_action_set: bool,
                  num_workers: int,
                  pin_memory: bool,
                  prefetch_factor: int,
                  device: str,
-                 group_read_factor: int=0,
-                 shuffle_checkpoints: bool=False):
+                 shuffle_checkpoints: bool,
+                 shuffle: bool):
         
         super().__init__()
         self.data_type = data_type
         self.data_path = data_path
         self.tmp_data_path = tmp_data_path
         self.game = game
+        self.runs = runs
         self.checkpoints = checkpoints
+        self.frame = frame
         self.t_step = t_step
         self.max_size = max_size
         self.dataset_on_gpu = dataset_on_gpu
         self.dataset_on_disk = dataset_on_disk
         self.batch_size = batch_size
-        self.full_action_set = full_action_set
+        self.minimal_action_set = minimal_action_set
         self.num_workers = num_workers
         self.pin_memory = pin_memory
         self.prefetch_factor = prefetch_factor
         self.device = device
-        self.group_read_factor = group_read_factor
         self.shuffle_checkpoints = shuffle_checkpoints
-
+        self.shuffle = shuffle
+        
     def get_dataloader(self):
         def collate(batch):
             """
             [params] observation 
-                (atari): (N, T, H, W) 
-                (dmc): (N, T, C, H, W)
-            [returns] observation: (N, T, C, H, W) C=1 in atari
+                (atari): (n, t, h, w) 
+                (dmc): (n, t, c, h, w)
+            [returns] observation: (n, t, f*c, h, w) c=1 in atari, c=3 in dmc
             """
-            t_step = self.t_step
+            f = self.frame
             observation, action, reward, done = torch.utils.data.dataloader.default_collate(batch)
-
+                          
             # grey-scale image for atari
             if self.data_type == 'atari':
-                observation = observation.unsqueeze(2)
+                observation = rearrange(observation, 'n t h w -> n t 1 h w')
             
+            # process data-format
+            observation = rearrange(observation, 'n t c h w -> n t 1 c h w')
+            observation = observation.repeat(1, 1, f, 1, 1, 1)
             action = action.long()
             reward = torch.nan_to_num(reward).sign()
             done = done.bool()
+            
+            # frame-stack
+            if f != 1:
+                for i in range(1, f):
+                    observation[:, :, i] = observation[:, :, i].roll(-i, 1)
+                observation= observation[:, :-(f-1)]
+                action = action[:, f-1:]
+                reward = reward[:, f-1:]
+                done = done[:, f-1:]
             
             # when done is True, func sanitize batch zeros out observation and reward
             return sanitize_batch(OfflineSamples(observation, action, reward, done))
@@ -204,10 +232,12 @@ class ReplayDataLoader(BaseLoader):
                                     self.data_path, 
                                     self.tmp_data_path, 
                                     self.game, 
+                                    self.runs,
                                     self.checkpoints, 
+                                    self.frame,
                                     self.t_step, 
                                     self.max_size,
-                                    self.full_action_set, 
+                                    self.minimal_action_set, 
                                     self.dataset_on_gpu, 
                                     self.dataset_on_disk,
                                     self.device)
@@ -217,24 +247,13 @@ class ReplayDataLoader(BaseLoader):
             shuffled_data = shuffle_batch_dim(*data)
             assign_to_dataloaders(dataset.datasets, *shuffled_data)
 
-        if self.group_read_factor != 0:
-            sampler = CacheEfficientSampler(dataset.num_blocks, dataset.block_len, self.group_read_factor)
-            dataloader = DataLoader(dataset, 
-                                    batch_size=self.batch_size,
-                                    sampler=sampler,
-                                    num_workers=self.num_workers,
-                                    pin_memory=self.pin_memory,
-                                    collate_fn=collate,
-                                    drop_last=True,
-                                    prefetch_factor=self.prefetch_factor)
-        else:
-            dataloader = DataLoader(dataset, 
-                                    batch_size=self.batch_size,
-                                    shuffle=True,
-                                    num_workers=self.num_workers,
-                                    pin_memory=self.pin_memory,
-                                    collate_fn=collate,
-                                    drop_last=True,
-                                    prefetch_factor=self.prefetch_factor)
+        dataloader = DataLoader(dataset, 
+                                batch_size=self.batch_size,
+                                shuffle=self.shuffle,
+                                num_workers=self.num_workers,
+                                pin_memory=self.pin_memory,
+                                collate_fn=collate,
+                                drop_last=False,
+                                prefetch_factor=self.prefetch_factor)
 
         return dataloader

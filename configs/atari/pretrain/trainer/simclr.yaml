@@ -3,24 +3,32 @@ type: 'simclr'
 obs_shape: None
 action_size: None
 t_step: None
-process_type: None
 
 aug_types: [random_shift, intensity]
 
 optimizer:
-    type: 'adam'
+    type: 'adamw'
     lr: 0.0001
     weight_decay: 0.0000001 #1e-6
     betas: [0.9, 0.999]
     eps: 0.00015
+    
+scheduler:
+    cycle_mult: 1.0
+    max_lr: 0.0001
+    min_lr: 0.0001
+    warmup_ratio: 0.2
+    gamma: 1.0
 
 # updates
-num_epochs: 10
+base_batch_size: 64
+base_num_epochs: 24
 batch_size: None
-clip_grad_norm: 1.0
+num_epochs: None
+clip_grad_norm: 0.5
 temperature: 0.1
 
 # logging
 log_every: 1000
-eval_every: 10
-save_every: 10
+eval_every: 1
+save_every: 6

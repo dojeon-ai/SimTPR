@@ -1,7 +1,6 @@
 type: 'vit'
 obs_shape: None
 action_size: None
-process_type: None
 t_step: None
 patch_size: [14, 14]
 pool: 'identity'

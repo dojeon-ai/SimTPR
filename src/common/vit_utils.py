@@ -320,6 +320,27 @@ def get_3d_masked_input(x, ids_keep, mask_type):
     return x_masked
 
 
+def restore_masked_input(x_masked, ids_restore, mask_tokens=None):
+    """
+    [param] x_masked: (n, mT, d)
+    [param] ids_restore: (n, T)
+    [param] mask_tokens: (n, T-mT, d)
+    [return] x: (n, T, d)
+    """
+    # mT = t * n_p * mask_ratio
+    # T = t * n_p
+    n, mT, d = x_masked.shape
+    _, T = ids_restore.shape
+    
+    if mask_tokens is None:
+        mask_tokens = torch.zeros((n, T-mT, d), device=x_masked.device)
+    
+    x = torch.cat([x_masked, mask_tokens], dim=1)    
+    x = torch.gather(x, dim=1, index=ids_restore.unsqueeze(-1).repeat(1,1,d)) 
+    
+    return x
+
+
 
 if __name__ == '__main__':
     print('[TEST Mask Functions]')

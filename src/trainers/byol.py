@@ -11,21 +11,28 @@ class BYOLTrainer(BaseTrainer):
     def __init__(self,
                  cfg,
                  device,
-                 dataloader,
+                 train_loader,
+                 eval_act_loader,
+                 eval_rew_loader,
                  logger, 
                  aug_func,
                  model):
         
-        super().__init__(cfg, device, dataloader, logger, aug_func, model)  
+        super().__init__(cfg, device, 
+                         train_loader, eval_act_loader, eval_rew_loader,
+                         logger, aug_func, model)  
         self.target_model = copy.deepcopy(self.model).to(self.device)        
 
     def compute_loss(self, obs, act, rew, done):
+        ##############
+        # forward
+        n, t, f, c, h, w = obs.shape
         # augmentation
         x = obs / 255.0
-        x = rearrange(x, 'n t c h w -> n (t c) h w')
+        x = rearrange(x, 'n t f c h w -> n (t f c) h w')
         x1, x2 = self.aug_func(x), self.aug_func(x)
-        x1 = rearrange(x1, 'n (t c) h w -> n t c h w', t=self.cfg.obs_shape[0])
-        x2 = rearrange(x2, 'n (t c) h w -> n t c h w', t=self.cfg.obs_shape[0])
+        x1 = rearrange(x1, 'n (t f c) h w -> n t f c h w', t=t, f=f)
+        x2 = rearrange(x2, 'n (t f c) h w -> n t f c h w', t=t, f=f)
         x = torch.cat([x1, x2], axis=0)
 
         # online encoder
@@ -47,8 +54,18 @@ class BYOLTrainer(BaseTrainer):
         loss = 0.5 * (loss_fn(p1_o, z2_t) + loss_fn(p2_o, z1_t))
         loss = torch.mean(loss)
 
+        ###############
         # logs
-        log_data = {'loss': loss.item()}
+        pos_idx = torch.eye(p1_o.shape[0], device=p1_o.device)
+        sim = F.cosine_similarity(p1_o.unsqueeze(1), z2_t.unsqueeze(0), dim=-1)
+        pos_sim = (torch.sum(sim * pos_idx) / torch.sum(pos_idx))
+        neg_sim = (torch.sum(sim * (1-pos_idx)) / torch.sum(1-pos_idx))
+        pos_neg_diff = pos_sim - neg_sim
+        
+        log_data = {'loss': loss.item(),
+                    'pos_sim': pos_sim.item(),
+                    'neg_sim': neg_sim.item(),
+                    'pos_neg_diff': pos_neg_diff.item()}
         
         return loss, log_data
 
@@ -56,33 +73,3 @@ class BYOLTrainer(BaseTrainer):
         for online, target in zip(self.model.parameters(), self.target_model.parameters()):
             target.data = self.cfg.tau * target.data + (1 - self.cfg.tau) * online.data
     
-    def evaluate(self, obs, act, rew, done):
-        self.model.eval()
-        
-        # augmentation
-        x = obs / 255.0
-        x = rearrange(x, 'n t c h w -> n (t c) h w')
-        x1, x2 = self.aug_func(x), self.aug_func(x)
-        x1 = rearrange(x1, 'n (t c) h w -> n t c h w', t=self.cfg.obs_shape[0])
-        x2 = rearrange(x2, 'n (t c) h w -> n t c h w', t=self.cfg.obs_shape[0])
-        x = torch.cat([x1, x2], axis=0)
-        
-        # encoder
-        y, _ = self.model.backbone(x)
-        z = self.model.head.project(y)
-        z = rearrange(z, 'n t d -> (n t) d')
-        z1, z2 = z.chunk(2)
-        
-        # similarity
-        pos_idx = torch.eye(z1.shape[0], device=z1.device)
-        sim = F.cosine_similarity(z1.unsqueeze(1), z2.unsqueeze(0), dim=-1)
-        pos_sim = (torch.sum(sim * pos_idx) / torch.sum(pos_idx)).item()
-        neg_sim = (torch.sum(sim * (1-pos_idx)) / torch.sum(1-pos_idx)).item()
-        pos_neg_diff = pos_sim - neg_sim
-        
-        # logs
-        log_data = {'pos_sim': pos_sim,
-                    'neg_sim': neg_sim,
-                    'pos_neg_diff': pos_neg_diff} 
-        
-        return log_data

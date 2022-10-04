@@ -30,21 +30,21 @@ def run(args):
     device = torch.device(cfg.device)
 
     # dataset
-    torch.set_num_threads(1)#<- when dataset on disk
+    torch.set_num_threads(1) # when dataset on disk
     cfg.dataloader.device = cfg.device
-    dataloader = build_dataloader(cfg.dataloader)
-
+    train_loader, eval_act_loader, eval_rew_loader = build_dataloader(cfg.dataloader)
+    
     # shape config
+    cfg.env.game = cfg.dataloader.game
     env, _ = build_env(cfg.env)
-    obs_shape = [cfg.dataloader.t_step] + list(env.observation_space.shape[1:])
+    obs_shape = [cfg.dataloader.train.frame] + list(env.observation_space.shape[1:])
     action_size = env.action_space.n
     
     # initiaize not pre-defined hyperparameters
     param_dict = {'obs_shape': obs_shape,
                   'action_size': action_size,
-                  'process_type': cfg.model.process_type,
-                  't_step': cfg.dataloader.t_step,
-                  'batch_size': cfg.dataloader.batch_size}
+                  't_step': cfg.dataloader.train.t_step,
+                  'batch_size': cfg.dataloader.train.batch_size}
 
     for key, value in param_dict.items():
         if key in cfg.model.backbone:
@@ -71,13 +71,19 @@ def run(args):
     
     # trainer
     trainer = build_trainer(cfg=cfg.trainer,
-                            dataloader=dataloader,
+                            train_loader=train_loader,
+                            eval_act_loader=eval_act_loader,
+                            eval_rew_loader=eval_rew_loader,
                             device=device,
                             logger=logger,
                             model=model)
     
     # train
-    trainer.train()
+    if cfg.debug is True:
+        trainer.debug()
+    else:
+        trainer.train()
+
     wandb.finish()
     return logger
     
@@ -85,7 +91,7 @@ def run(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(allow_abbrev=False)
     parser.add_argument('--config_dir',  type=str,    default='atari/pretrain')
-    parser.add_argument('--config_name', type=str,    default='mixed_mae_vit') 
+    parser.add_argument('--config_name', type=str,    default='mixed_rssm_impala') 
     parser.add_argument('--overrides',   action='append', default=[])
     args = parser.parse_args()
 

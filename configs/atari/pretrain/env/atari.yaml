@@ -1,6 +1,6 @@
 type: 'atari'
-game: 'pong'
+game: None
 frame_skip: 4
-num_img_obs: 4
+frame: 4
 horizon: 27000
 grayscale: True

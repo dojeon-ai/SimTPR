@@ -30,12 +30,12 @@ def build_trainer_model(cfg):
     backbone = backbone(**backbone_cfg)
     
     # get output dim of backbone
-    fake_obs = torch.zeros((1, *backbone_cfg['obs_shape']))
+    fake_obs = torch.zeros((1, 1, *backbone_cfg['obs_shape']))
     out, _ = backbone(fake_obs)
     output_dim = out.shape[-1]
     
     # head
-    head_cfg['in_features'] = output_dim
+    head_cfg['in_dim'] = output_dim
     head = HEADS[head_type]
     head = head(**head_cfg)
 
@@ -59,7 +59,7 @@ def build_agent_model(cfg):
     backbone = backbone(**backbone_cfg)
     
     # get output dim of backbone
-    fake_obs = torch.zeros((1, *backbone_cfg['obs_shape']))
+    fake_obs = torch.zeros((1, 1, *backbone_cfg['obs_shape']))
     output_dim = backbone(fake_obs).shape[-1]
 
     # head

@@ -1,5 +1,6 @@
 import numpy as np
 import os
+import re
 import atari_py
 import cv2
 import copy
@@ -29,7 +30,7 @@ class AtariEnv(BaseEnv):
     Args:
         game (str): game name
         frame_skip (int): frames per step (>=1)
-        num_img_obs (int): number of frames in observation (>=1)
+        frame (int): number of frames in observation (>=1)
         clip_reward (bool): if ``True``, clip reward to np.sign(reward)
         episodic_lives (bool): if ``True``, output ``done=True`` but ``env_info[traj_done]=False`` when a life is lost
         max_start_noops (int): upper limit for random number of noop actions after reset
@@ -40,7 +41,7 @@ class AtariEnv(BaseEnv):
     def __init__(self,
                  game="pong",
                  frame_skip=4,  # Frames per step (>=1).
-                 num_img_obs=4,  # Number of (past) frames in observation (>=1).
+                 frame=4,  # Number of (past) frames in observation (>=1).
                  clip_reward=True,
                  episodic_lives=True,
                  max_start_noops=30,
@@ -55,6 +56,7 @@ class AtariEnv(BaseEnv):
                  
         save__init__args(locals(), underscore=True)
         # ALE
+        game = re.sub(r'(?<!^)(?=[A-Z])', '_', game).lower()
         game_path = atari_py.get_game_path(game)
         if not os.path.exists(game_path):
             raise IOError("You asked for game {} but path {} does not "
@@ -72,11 +74,13 @@ class AtariEnv(BaseEnv):
             n=len(self._action_set),
             start=0
         )
+
+        
         self.channels = 1 if grayscale else 3
         self.grayscale = grayscale
         self.imagesize = imagesize
         if self.stack_actions: self.channels += 1
-        obs_shape = (num_img_obs, self.channels, imagesize, imagesize)
+        obs_shape = (frame, self.channels, imagesize, imagesize)
         self._observation_space = spaces.Box(
             low=0,
             high=255,
@@ -208,8 +212,8 @@ class AtariEnv(BaseEnv):
         return self._frame_skip
 
     @property
-    def num_img_obs(self):
-        return self._num_img_obs
+    def frame(self):
+        return self._frame
 
     @property
     def clip_reward(self):

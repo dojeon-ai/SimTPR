@@ -1,9 +1,9 @@
-# OT-Rainbow
 project_name: 'atari_pretrain'
 entity: 'draftrec'
 group_name: 'test'
 exp_name: 'byol_impala'
 device: cuda:0
+debug: True
 seed: 0
 
 # pretrained-backbone
@@ -13,7 +13,7 @@ model_path: ''
 
 defaults:
 - _self_
-- dataloader: mixed_bn256_t4
+- dataloader: lightweight
 - env: atari
 - trainer: byol
 - model: impala_byol

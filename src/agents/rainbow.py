@@ -23,36 +23,12 @@ class RAINBOW(BaseAgent):
                  logger, 
                  buffer,
                  aug_func,
-                 model,
-                 video_recorder=None):
+                 model):
         
-        super().__init__()  
-        self.cfg = cfg  
-        self.device = device
-        self.train_env = train_env
-        self.eval_env = eval_env
-        self.logger = logger
-        self.buffer = buffer
-        self.aug_func = aug_func.to(self.device)
-
-        self.model = model.to(self.device)
+        super().__init__(cfg, device, train_env, eval_env, logger, buffer, aug_func, model)  
         self.target_model = copy.deepcopy(self.model).to(self.device)   
         for param in self.target_model.parameters():
-            param.requires_grad = False     
-        finetune_type = cfg.pop('finetune_type')
-        if finetune_type == 'naive':
-            param_group = self.model.parameters()
-        elif finetune_type == 'freeze':
-            for param in self.model.backbone.parameters():
-                param.requires_grad = False
-            param_group = self.model.parameters()
-        elif finetune_type == 'reduced':
-            param_group = [
-                {'params': self.model.backbone.parameters(), 
-                 'lr': cfg.optimizer.lr * cfg.backbone_lr_scale},
-                {'params': self.model.policy.parameters()}
-            ]
-        self.optimizer = self._build_optimizer(param_group, cfg.optimizer)
+            param.requires_grad = False
 
         # distributional
         self.num_atoms = self.model.policy.get_num_atoms()
@@ -61,28 +37,15 @@ class RAINBOW(BaseAgent):
         self.support = torch.linspace(self.v_min, self.v_max, self.num_atoms).to(self.device)
         self.delta_z = (self.v_max - self.v_min) / (self.num_atoms - 1)
 
-    def _build_optimizer(self, param_group, optimizer_cfg):
-        optimizer_type = optimizer_cfg.pop('type')
-        if optimizer_type == 'adam':
-            return optim.Adam(param_group, 
-                              **optimizer_cfg)
-        elif optimizer_type == 'rmsprop':
-            return optim.RMSprop(param_group, 
-                                 **optimizer_cfg)
-        else:
-            raise ValueError
-
     def predict(self, obs):
-        # [params] obs (torch.tensor) (N, C, H, W)
+        self.model.policy.reset_noise()
         q_value = (self.model(obs) * self.support.reshape(1,1,-1)).sum(-1)
         action = torch.argmax(q_value, 1).item()
 
         return action
 
-    # Acts with an ε-greedy policy (used for evaluation only)
+    # Acts with an ε-greedy policy (used in evaluation)
     def predict_greedy(self, obs, eps):
-        # [params] obs (torch.tensor) (N, C, H, W)
-        # epsilon-greedy prediction
         p = random.random()
         if p < eps:
             action = random.randint(0, self.cfg.action_size-1)
@@ -90,12 +53,24 @@ class RAINBOW(BaseAgent):
             action = self.predict(obs)
 
         return action
+    
+    def update(self):
+        self.target_model.load_state_dict(self.model.state_dict())
 
-    def _update(self):
+    def compute_loss(self):
         self.model.train()
         self.target_model.train()
-        idxs, obs_batch, act_batch, return_batch, done_batch, next_obs_batch, weights = self.buffer.sample(self.cfg.batch_size)
-
+        
+        # get samples from buffer
+        sample_dict = self.buffer.sample(self.cfg.batch_size)
+        idxs = sample_dict['idxs'], 
+        obs_batch = sample_dict['obs_batch']
+        act_batch = sample_dict['act_batch']
+        return_batch = sample_dict['return_batch']
+        done_batch = sample_dict['done_batch']
+        next_obs_batch = sample_dict['next_obs_batch']
+        weights = sample_dict['weights']
+        
         # augment the observation if needed
         obs_batch, next_obs_batch = self.aug_func(obs_batch), self.aug_func(next_obs_batch)
 
@@ -112,8 +87,8 @@ class RAINBOW(BaseAgent):
 
         with torch.no_grad():
             # Calculate n-th next state's q-value distribution
-            # next_target_q_dist: (N, A, N_A)
-            # target_q_dist: (N, N_A)
+            # next_target_q_dist: (n, a, num_atoms)
+            # target_q_dist: (n, num_atoms)
             next_target_q_dist = (self.target_model(next_obs_batch))
             if self.cfg.double:
                 next_online_q_dist = (self.model(next_obs_batch))
@@ -147,67 +122,17 @@ class RAINBOW(BaseAgent):
         # kl-divergence 
         kl_div = -torch.sum(m * log_pred_q_dist, -1)
         loss = (kl_div * weights).mean()
-
-        # optimization
-        self.optimizer.zero_grad()
-        loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.cfg.clip_grad_norm)
-        self.optimizer.step()
-    
-        # update priority 
+        
+        # update priority
         if self.buffer.name == 'per_buffer':
             self.buffer.update_priorities(idxs=idxs, priorities=kl_div.detach().cpu().numpy())
 
-        # log
+        # logs
         log_data = {
             'loss': loss.item()
         }
-        return log_data
-
-    def train(self):
-        obs = self.train_env.reset()
-        for t in tqdm.tqdm(range(1, self.cfg.num_timesteps+1)):
-            # encode last observation to torch.tensor()
-            obs_tensor = self.buffer.encode_obs(obs, prediction=True)
-
-            # get action from the model
-            # model should be train-mode for exploration
-            self.model.train()
-            self.model.policy.reset_noise()
-            action = self.predict(obs_tensor)
-
-            # step
-            next_obs, reward, done, info = self.train_env.step(action)
-
-            # store new transition
-            self.buffer.store(obs, action, reward, done, next_obs)
-
-            # update
-            if (t >= self.cfg.min_buffer_size) & (t % self.cfg.update_freq == 0):
-                for _ in range(self.cfg.updates_per_step):
-                    log_data = self._update()
-                    self.logger.update_log(mode='train', **log_data)
-
-            if t % self.cfg.target_update_freq == 0:
-                self.target_model.load_state_dict(self.model.state_dict())
-
-            # logger
-            self.logger.step(obs, reward, done, info, mode='train')
-            if t % self.cfg.log_every == 0:
-                self.logger.write_log()
-
-            # evaluate & save model
-            if t % self.cfg.eval_every == 0:
-                #self.logger.save_state_dict(model=self.model)
-                self.evaluate()
-
-            # move on
-            # should not be done (cannot collect the return of trajectory)
-            if info.traj_done:
-                obs = self.train_env.reset()
-            else:
-                obs = next_obs
-
+        return loss, log_data
+    
     def evaluate(self):
         self.model.eval()
         for _ in tqdm.tqdm(range(self.cfg.num_eval_trajectories)):

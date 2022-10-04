@@ -32,14 +32,6 @@ def orthogonal_init(m):
         gain = nn.init.calculate_gain('relu')
         nn.init.orthogonal_(m.weight.data, gain)
         nn.init.constant_(m.bias.data, 0)
-    
-    return m
-
-def xavier_uniform_init(m):
-    if isinstance(m, nn.Linear) or isinstance(m, nn.Conv2d):
-        nn.init.xavier_uniform_(m.weight.data)
-        if m.bias is not None:
-            nn.init.constant_(m.bias.data, 0)
         
     elif isinstance(m, nn.LayerNorm):
         nn.init.constant_(m.weight, 1.0)    
@@ -47,19 +39,48 @@ def xavier_uniform_init(m):
     
     return m
 
-def init_normalization(channels, norm_type="bn", affine=True, one_d=False):
-    assert norm_type in ["bn", "ln", None]
+def xavier_uniform_init(m):
+    if isinstance(m, nn.Linear):
+        gain = 1.0
+        nn.init.orthogonal_(m.weight.data, gain)
+        nn.init.constant_(m.bias.data, 0)
+    
+    elif isinstance(m, nn.Conv2d):
+        gain = nn.init.calculate_gain('relu')
+        nn.init.orthogonal_(m.weight.data, gain)
+        nn.init.constant_(m.bias.data, 0)
+        
+    elif isinstance(m, nn.LayerNorm):
+        nn.init.constant_(m.weight, 1.0)    
+        nn.init.constant_(m.bias, 0)
+    
+    return m
+
+def init_normalization(channels, norm_type="bn", one_d=False):
+    assert norm_type in ["bn", "bn_nt", "ln", "ln_nt", None]
     if norm_type == "bn":
         if one_d:
-            return nn.BatchNorm1d(channels, affine=affine)
+            return nn.BatchNorm1d(channels, affine=True)
         else:
-            return nn.BatchNorm2d(channels, affine=affine)
+            return nn.BatchNorm2d(channels, affine=True)
+        
+    elif norm_type == "bn_nt":
+        if one_d:
+            return nn.BatchNorm1d(channels, affine=False)
+        else:
+            return nn.BatchNorm2d(channels, affine=False)
         
     elif norm_type == "ln":
         if one_d:
-            return nn.LayerNorm(channels, elementwise_affine=affine)
+            return nn.LayerNorm(channels, elementwise_affine=True)
         else:
-            return nn.GroupNorm(1, channels, affine=affine)
+            return nn.GroupNorm(1, channels, affine=True)
+    
+    elif norm_type == "ln_nt":
+        if one_d:
+            return nn.LayerNorm(channels, elementwise_affine=False)
+        else:
+            return nn.GroupNorm(1, channels, affine=False)
     
     elif norm_type is None:
         return nn.Identity()
@@ -78,17 +99,19 @@ class LinearScheduler(object):
         self.initial_value = initial_value
         self.final_value   = final_value
         self.step_size = step_size
+        self.step = 0
         
-    def get_value(self, step):
+    def get_value(self):
         """
         Return the scheduled value
         """
+        self.step += 1
         interval = (self.initial_value - self.final_value) / self.step_size
         # After the schedule_timesteps, final value is returned
         if self.final_value < self.initial_value:
-            return max(self.initial_value - interval * step, self.final_value)
+            return max(self.initial_value - interval * self.step, self.final_value)
         else:
-            return min(self.initial_value - interval * step, self.final_value)
+            return min(self.initial_value - interval * self.step, self.final_value)
         
 
 class CosineAnnealingWarmupRestarts(_LRScheduler):

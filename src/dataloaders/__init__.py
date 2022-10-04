@@ -10,6 +10,17 @@ def build_dataloader(cfg):
     cfg = OmegaConf.to_container(cfg)
     loader_type = cfg.pop('type')
     loader = LOADERS[loader_type]
-    dataloader = loader(**cfg).get_dataloader()
     
-    return dataloader
+    train_cfg = cfg.pop('train')
+    eval_act_cfg = cfg.pop('act')
+    eval_rew_cfg = cfg.pop('rew')
+    
+    train_cfg.update(cfg)
+    eval_act_cfg.update(cfg)
+    eval_rew_cfg.update(cfg)
+
+    train_loader = loader(**train_cfg).get_dataloader()
+    eval_act_loader = loader(**eval_act_cfg).get_dataloader()
+    eval_rew_loader = loader(**eval_rew_cfg).get_dataloader()
+    
+    return train_loader, eval_act_loader, eval_rew_loader

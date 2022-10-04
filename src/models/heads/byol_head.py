@@ -7,23 +7,21 @@ from .base import BaseHead
 class BYOLHead(BaseHead):
     name = 'byol'
     def __init__(self, 
-                 process_type,
-                 in_features,
-                 hid_features,
-                 out_features):
+                 in_dim,
+                 hid_dim,
+                 out_dim):
         super().__init__()
-        self.process_type = process_type
         self.projector = nn.Sequential(
-            nn.Linear(in_features=in_features, out_features=hid_features),
-            nn.BatchNorm1d(num_features=hid_features),
+            nn.Linear(in_dim, hid_dim),
+            nn.BatchNorm1d(hid_dim),
             nn.ReLU(),
-            nn.Linear(in_features=hid_features, out_features=out_features)
+            nn.Linear(hid_dim, out_dim)
         )
         self.predictor = nn.Sequential(
-            nn.Linear(in_features=out_features, out_features=out_features),
-            nn.BatchNorm1d(num_features=out_features),
+            nn.Linear(out_dim, out_dim),
+            nn.BatchNorm1d(out_dim),
             nn.ReLU(),
-            nn.Linear(in_features=out_features, out_features=out_features)
+            nn.Linear(out_dim, out_dim)
         )
         
     def project(self, x):

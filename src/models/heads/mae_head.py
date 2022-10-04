@@ -4,6 +4,7 @@ import numpy as np
 from einops import rearrange, repeat
 from .base import BaseHead
 from src.models.layers import Transformer
+from src.common.train_utils import xavier_uniform_init
 from src.common.vit_utils import get_1d_sincos_pos_embed_from_grid, get_2d_sincos_pos_embed
 from src.common.vit_utils import get_1d_masked_input, get_3d_masked_input
 
@@ -16,7 +17,7 @@ class MAEHead(BaseHead):
                  patch_size,
                  process_type,
                  t_step,
-                 in_features,
+                 in_dim,
                  dec_depth, 
                  dec_dim, 
                  dec_mlp_dim,
@@ -43,7 +44,7 @@ class MAEHead(BaseHead):
         self.num_patches = num_patches
         self.dec_dim = dec_dim
         
-        self.decoder_embed = nn.Linear(in_features, dec_dim)                
+        self.decoder_embed = nn.Linear(in_dim, dec_dim)                
         self.patch_mask_token = nn.Parameter(torch.zeros(1, 1, dec_dim))
         self.spatial_embed = nn.Parameter(torch.randn(1, num_patches, dec_dim), requires_grad=False) 
         self.temporal_embed = nn.Parameter(torch.randn(1, t_step, dec_dim), requires_grad=False)
@@ -76,17 +77,7 @@ class MAEHead(BaseHead):
         torch.nn.init.normal_(self.patch_mask_token, std=.02)
         
         # initialize nn.Linear and nn.LayerNorm
-        self.apply(self._init_weights)
-
-    def _init_weights(self, m):
-        if isinstance(m, nn.Linear):
-            # we use xavier_uniform following official JAX ViT:
-            torch.nn.init.xavier_uniform_(m.weight)
-            if isinstance(m, nn.Linear) and m.bias is not None:
-                nn.init.constant_(m.bias, 0)
-        elif isinstance(m, nn.LayerNorm):
-            nn.init.constant_(m.bias, 0)
-            nn.init.constant_(m.weight, 1.0)
+        self.apply(xavier_uniform_init)
 
     def forward(self, x, patch_mask_dict=None):
         """

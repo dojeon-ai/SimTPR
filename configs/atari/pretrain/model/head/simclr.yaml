@@ -1,5 +1,4 @@
 type: simclr
-process_type: None
-in_features: None
-hid_features: 256
-out_features: 256
+in_dim: None
+hid_dim: 256
+out_dim: 256

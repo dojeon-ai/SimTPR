@@ -16,8 +16,6 @@ class BaseBuffer(metaclass=ABCMeta):
     def store(self, obs: np.ndarray, action: int, reward: float, done: bool, next_obs: np.ndarray):
         pass
     
-    def sample(self, batch_size: int) -> Tuple[np.ndarray, torch.FloatTensor, torch.LongTensor, torch.FloatTensor, 
-                                               torch.FloatTensor, torch.FloatTensor, torch.FloatTensor]:
-        # idx, obs, act, rew, done, next_obs, weights
+    def sample(self, batch_size: int) -> dict:
         pass
 

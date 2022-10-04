@@ -3,7 +3,7 @@ obs_shape: None
 action_size: None
 process_type: None
 t_step: None
-in_features: None
+in_dim: None
 patch_size: [14, 14]
 dec_depth: 2
 dec_dim: 192

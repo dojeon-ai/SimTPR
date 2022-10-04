@@ -26,18 +26,12 @@ class VIT(BaseBackbone):
                  dropout):
 
         super().__init__()
-        t, c, i_h, i_w = obs_shape
-        
-        assert process_type in {'indiv_frame', 'stack_frame'}
-        self.process_type = process_type
-        if process_type == 'indiv_frame':
-            self.in_channel = c
-        elif process_type == 'stack_frame':
-            self.in_channel = t * c
+        f, c, h, w = obs_shape
+        self.in_channel = f * c
    
         p_h, p_w = patch_size
-        assert i_h % p_h == 0 and i_w % p_w == 0, 'Image must be divisible by the patch size.'
-        num_patches = (i_h // p_h) * (i_w // p_w)
+        assert h % p_h == 0 and w % p_w == 0, 'Image must be divisible by the patch size.'
+        num_patches = (h // p_h) * (w // p_w)
         patch_dim = self.in_channel * p_h * p_w
 
         self.t_step = t_step

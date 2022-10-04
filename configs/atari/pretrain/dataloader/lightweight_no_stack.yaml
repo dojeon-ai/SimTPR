@@ -1,20 +1,19 @@
 type: 'replay'
-#data_path: '/home/nas3_userK/hojoonlee/projects/video_rl/data/atari'
-#tmp_data_path: '/home/nas3_userK/hojoonlee/projects/video_rl/data/atari'
 data_type: 'atari'
 data_path: '/data/private/video_rl/data/atari'
 tmp_data_path: '/data/private/video_rl/data/atari'
-game: 'Pong' # requires camel case
-checkpoints: [1, 25, 50]
-t_step: 4
-max_size: 1000000 # 1e6
+game: 'Boxing' # requires camel case
 dataset_on_gpu: False #True
 dataset_on_disk: True #False
-batch_size: 256
-full_action_set: False
+minimal_action_set: True
 num_workers: 0 # 0 means that the data will be loaded in the main process
 pin_memory: True # False 
 prefetch_factor: 2 # recommend to use num_workers * 2 
-group_read_factor: 0 
 shuffle_checkpoints: False
+shuffle: False
 device: 'cuda:0'
+
+defaults:
+- train: r1_ckpt345_n64_t8_f1
+- act: r2_ckpt50_n64_t4_f1
+- rew: r2_ckpt1_n64_t4_f1

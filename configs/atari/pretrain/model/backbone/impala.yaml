@@ -1,9 +1,10 @@
 type: 'impala'
 obs_shape: None
 action_size: None
-process_type: None
 channels: (16, 32, 32)
 strides: (3, 2, 2)
-expansion_ratio: 4
+scale_ratio: 2
+expansion_ratio: 2
+blocks_per_group: 3
 norm_type: 'bn'
 init_type: None
