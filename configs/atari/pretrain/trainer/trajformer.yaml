@@ -1,5 +1,5 @@
 # defaults
-type: 'rssm'
+type: 'trajformer'
 obs_shape: None
 action_size: None
 t_step: None
@@ -29,15 +29,18 @@ tau_scheduler:
     final_value: 0.999
     step_size: None
     
+dataset_type: 'trajectory' # video, demonstration, trajectory
+act_lmbda: 1.0
+idm_lmbda: 0.0
+rew_lmbda: 1.0
+    
 # updates
-base_batch_size: 64
-base_num_epochs: 24
 batch_size: None
-num_epochs: None
+num_epochs: 20
 clip_grad_norm: 0.5
-idm_lmbda: 1.0
 
 # logging
+base_metric: 'reward_f1'
 log_every: 1000
 eval_every: 1
-save_every: 6
+save_every: 5

@@ -20,9 +20,6 @@ if __name__ == '__main__':
     parser.add_argument('--config_dir',   type=str,    default='atari/pretrain')
     parser.add_argument('--config_name',  type=str,    default='mixed_curl_impala') 
     parser.add_argument('--debug',        type=str2bool,   default=True)
-    parser.add_argument('--use_artifact', type=str2bool,   default=False)
-    parser.add_argument('--artifact_name',type=str,    default='') # simclr
-    parser.add_argument('--model_path',   type=str,    default='') # 0/8/model.pth
     parser.add_argument('--num_seeds',     type=int,   default=1)
     parser.add_argument('--num_devices',   type=int,   default=4)
     parser.add_argument('--num_exp_per_device',  type=int,  default=1)
@@ -58,15 +55,6 @@ if __name__ == '__main__':
         exp['overrides'].append('dataloader.game=' + str(camel_game))
         exp['overrides'].append('device=' + 'cuda:' + str(device_id))
         exp['overrides'].append('debug=' + str(debug))
-        
-        # start from pretrain if use artifact
-        use_artifact = exp.pop('use_artifact')
-        artifact_name = exp.pop('artifact_name')
-        model_path = exp.pop('model_path')
-        if use_artifact:
-            exp['overrides'].append('use_artifact=True')
-            exp['overrides'].append('artifact_name=' + artifact_name)
-            exp['overrides'].append('model_path=' + camel_game + '/' + model_path)
 
         experiments.append(exp)
         device_id += 1

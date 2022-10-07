@@ -1,4 +1,4 @@
 defaults:
 - backbone: impala
-- head: curl
+- head: trajformer
 - policy: identity

@@ -6,14 +6,10 @@ device: cuda:0
 debug: True
 seed: 0
 
-# pretrained-backbone
-use_artifact: False
-artifact_name: ''
-model_path: ''
-
 defaults:
 - _self_
 - dataloader: lightweight
 - env: atari
 - trainer: curl
 - model: impala_curl
+- pretrain: scratch

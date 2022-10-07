@@ -3,6 +3,7 @@ import torch
 import numpy as np
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
+from src.common.train_utils import xavier_uniform_init
 from src.common.vit_utils import get_1d_sincos_pos_embed_from_grid
 
 
@@ -156,7 +157,6 @@ class TransDet(nn.Module):
         mlp_dim = hid_dim * 4
         max_t_step = 256
         self.norm_in = nn.LayerNorm(hid_dim)
-        self.act_embedder = nn.Embedding(action_size, hid_dim)
         self.decoder = Transformer(dim=hid_dim, 
                                    depth=num_layers,
                                    heads=num_heads,
@@ -165,21 +165,49 @@ class TransDet(nn.Module):
         self.pos_embed = nn.Parameter((torch.randn(1, max_t_step, hid_dim)), requires_grad=False)
         pos_embed = get_1d_sincos_pos_embed_from_grid(hid_dim, np.arange(max_t_step))
         self.pos_embed.copy_(torch.from_numpy(pos_embed).float().unsqueeze(0))
+        self.apply(xavier_uniform_init)
 
-    def forward(self, x, a, attn_mask=None):
+    def forward(self, obs, act=None, rew=None, attn_mask=None, dataset_type='demonstration'):
         """
-        [params] x: (n, t, d)
-        [params] a: (n, t)
-        [returns] a_x: (n, 2*t, d)
+        [params] obs: (n, t, d)
+        [params] act: (n, t)
+        [params] rew: (n, t)
+        [returns] x: (n, T, d) 
+           if act is not None: T=2*t
+           if rew is not None: T=3*t
         """
-        n, t, d = x.shape
-        a = self.act_embedder(a)
-        x = x + self.pos_embed[:, :t, :]
-        a = a + self.pos_embed[:, :t, :]
-        x_a = torch.zeros((n, 2 * t, d), device=(x.device))
-        x_a[:, torch.arange(t) * 2, :] += x
-        x_a[:, torch.arange(t) * 2 + 1, :] += a
-        x_a = self.norm_in(x_a)
-        x_a, _ = self.decoder(x_a, attn_mask=attn_mask)
-        return x_a
+        n, t, d = obs.shape
+
+        if dataset_type == 'video':
+            x = obs + self.pos_embed[:, :t, :]
+            
+        elif dataset_type == 'demonstration':
+            if act is None:
+                raise ValueError('requires action for demonstration data')
+            
+            obs = obs + self.pos_embed[:, :t, :]
+            act = act + self.pos_embed[:, :t, :]
+            x = torch.zeros((n, 2 * t, d), device=(obs.device))
+            x[:, torch.arange(t) * 2, :] += obs
+            x[:, torch.arange(t) * 2 + 1, :] += act
+            
+        elif dataset_type == 'trajectory':
+            if act is None:
+                raise ValueError('requires action for trajectory data')
+                
+            if rew is None:
+                raise ValueError('requires reward for trajectory data')
+            
+            obs = obs + self.pos_embed[:, :t, :]
+            act = act + self.pos_embed[:, :t, :]
+            rew = rew + self.pos_embed[:, :t, :]
+            x = torch.zeros((n, 3 * t, d), device=(obs.device))
+            x[:, torch.arange(t) * 3, :] += obs
+            x[:, torch.arange(t) * 3 + 1, :] += act
+            x[:, torch.arange(t) * 3 + 2, :] += rew
+        
+        x = self.norm_in(x)
+        x, _ = self.decoder(x, attn_mask=attn_mask)
+        
+        return x
     

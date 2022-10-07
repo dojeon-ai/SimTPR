@@ -33,8 +33,6 @@ class BaseTrainer():
         self.aug_func = aug_func.to(self.device)
         self.model = model.to(self.device)
         self.optimizer = self._build_optimizer(cfg.optimizer)
-        
-        cfg.num_epochs = int(cfg.base_num_epochs * (cfg.batch_size / cfg.base_batch_size))
         self.lr_scheduler = self._build_scheduler(self.optimizer, cfg.scheduler)
         
     @classmethod
@@ -98,7 +96,9 @@ class BaseTrainer():
         # initial evaluation
         self.model.eval()
         eval_logs = self.evaluate()
+        best_metric_val = eval_logs[self.cfg.base_metric]
         eval_logs['epoch'] = 0
+        eval_logs['best_metric_val'] = best_metric_val
         self.logger.update_log(**eval_logs)
         self.logger.write_log(step)
         
@@ -131,16 +131,21 @@ class BaseTrainer():
                 self.lr_scheduler.step()
                 step += 1
             
-            base_epoch = int(e * (self.cfg.base_batch_size / self.cfg.batch_size))
-            if base_epoch % self.cfg.eval_every == 0:
+            if e % self.cfg.eval_every == 0:
                 self.model.eval()
                 eval_logs = self.evaluate()
-                eval_logs['epoch'] = base_epoch
+                eval_logs['epoch'] = e
+                metric_val = eval_logs[self.cfg.base_metric]
+                if metric_val > best_metric_val:
+                    best_metric_val = metric_val
+                    self.logger.save_state_dict(model=self.model, name='best')
+                eval_logs['best_metric_val'] = best_metric_val
+                    
                 self.logger.update_log(**eval_logs)
                 self.logger.write_log(step)
                 
-            if base_epoch % self.cfg.save_every == 0:
-                self.logger.save_state_dict(model=self.model, epoch=base_epoch)
+            if e % self.cfg.save_every == 0:
+                self.logger.save_state_dict(model=self.model, name=e)
                 
                 
     def evaluate(self) -> dict:

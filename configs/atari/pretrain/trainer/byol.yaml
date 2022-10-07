@@ -21,14 +21,12 @@ scheduler:
     gamma: 1.0
 
 # updates
-base_batch_size: 64
-base_num_epochs: 24
 batch_size: None
-num_epochs: None
+num_epochs: 20
 clip_grad_norm: 0.5
 tau: 0.99
 
 # logging
 log_every: 1000
 eval_every: 1
-save_every: 6
+save_every: 5

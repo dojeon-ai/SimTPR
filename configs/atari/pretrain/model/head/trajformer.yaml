@@ -1,4 +1,4 @@
-type: mlr
+type: trajformer
 obs_shape: None
 action_size: None
 t_step: None

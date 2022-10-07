@@ -1,3 +1,4 @@
 defaults:
 - backbone: impala
 - head: byol
+- policy: identity

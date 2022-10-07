@@ -43,16 +43,19 @@ def xavier_uniform_init(m):
     if isinstance(m, nn.Linear):
         gain = 1.0
         nn.init.orthogonal_(m.weight.data, gain)
-        nn.init.constant_(m.bias.data, 0)
+        if m.bias is not None:
+            nn.init.constant_(m.bias.data, 0)
     
     elif isinstance(m, nn.Conv2d):
         gain = nn.init.calculate_gain('relu')
         nn.init.orthogonal_(m.weight.data, gain)
-        nn.init.constant_(m.bias.data, 0)
+        if m.bias is not None:
+            nn.init.constant_(m.bias.data, 0)
         
     elif isinstance(m, nn.LayerNorm):
         nn.init.constant_(m.weight, 1.0)    
-        nn.init.constant_(m.bias, 0)
+        if m.bias is not None:
+            nn.init.constant_(m.bias, 0)
     
     return m
 

@@ -14,6 +14,6 @@ shuffle: False
 device: 'cuda:0'
 
 defaults:
-- train: r1_ckpt345_n64_t8_f4
+- train: r1_ckpt345_n64_t10_f4
 - act: r2_ckpt50_n64_t1_f4
 - rew: r2_ckpt1_n64_t1_f4

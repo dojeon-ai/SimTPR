@@ -1,19 +1,16 @@
 from .base import BaseTrainer
 from src.common.losses import ConsistencyLoss
 from src.common.train_utils import LinearScheduler
-from src.common.vit_utils import get_random_1d_mask, get_1d_masked_input
 from src.common.vit_utils import get_random_3d_mask, get_3d_masked_input, restore_masked_input
+from einops import rearrange
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from einops import rearrange, repeat
 import copy
 import wandb
-import tqdm
 
-
-class MLRTrainer(BaseTrainer):
-    name = 'mlr'
+class TrajFormerTrainer(BaseTrainer):
+    name = 'trajformer'
     def __init__(self,
                  cfg,
                  device,
@@ -31,7 +28,7 @@ class MLRTrainer(BaseTrainer):
         update_steps = len(self.train_loader) * self.cfg.num_epochs
         cfg.tau_scheduler.step_size = update_steps
         self.tau_scheduler = LinearScheduler(**cfg.tau_scheduler)
-    
+        
     def compute_loss(self, obs, act, rew, done):
         ####################
         # augmentation
@@ -44,10 +41,11 @@ class MLRTrainer(BaseTrainer):
         x = torch.cat([x1, x2], axis=0)        
         x = rearrange(x, 'n (t f c) h w -> n t f c h w', t=t, f=f)
         act = torch.cat([act, act], axis=0)
+        rew = torch.cat([rew, rew], axis=0)
         
         # strong augmentation to online: (masking)
-        assert self.cfg.mask_type in {'pixel', 'latent'}
-        if self.cfg.mask_type == 'latent':
+        assert self.cfg.mask_type in {'none', 'pixel'}
+        if self.cfg.mask_type == 'none':
             x_o = x
             x_t = x
         
@@ -76,65 +74,75 @@ class MLRTrainer(BaseTrainer):
         #################
         # forward
         # online encoder
-        y_o, _ = self.model.backbone(x_o)        
-        h_o = self.model.head.obs_in(y_o)
+        y_o, _ = self.model.backbone(x_o)  
         
-        if self.cfg.mask_type == 'pixel':
-            obs_o = self.model.head.decode(h_o, act) # t=0: identity, t=1...T: predicted
-                
-        elif self.cfg.mask_type == 'latent':
-            video_shape = (2*n, t)
-            ids_keep, _, ids_restore = get_random_1d_mask(video_shape, self.cfg.mask_ratio)
-            ids_keep = ids_keep.to(x.device)
-            ids_restore = ids_restore.to(x.device)
+        # decode
+        dataset_type = self.cfg.dataset_type 
+        if dataset_type == 'video':
+            dec_input = {'obs': y_o}
             
-            hm_o = get_1d_masked_input(h_o, ids_keep)
-            mask_tokens = self.model.head.mask_token.repeat(2*n, t-hm_o.shape[1], 1)
-            hm_o = restore_masked_input(hm_o, ids_restore, mask_tokens)
+        elif dataset_type == 'demonstration':
+            dec_input = {'obs': y_o,
+                         'act': act}
             
-            # decode on the masked latent
-            obs_o = self.model.head.decode(hm_o, act) # t=0: identity, t=1...T: predicted
-
+        elif dataset_type == 'trajectory':
+            dec_input = {'obs': y_o,
+                         'act': act,
+                         'rew': rew}
+    
+        dec_output = self.model.head.decode(dec_input, dataset_type) 
+        obs_o, act_o, rew_o = dec_output['obs'], dec_output['act'], dec_output['rew']        
         z_o = self.model.head.project(obs_o)
         p_o = self.model.head.predict(z_o)
-        h1_o, h2_o = h_o.chunk(2)
+        z1_o, z2_o = z_o.chunk(2)
         p1_o, p2_o = p_o.chunk(2)
         
         # target encoder
         with torch.no_grad():
             y_t, _ = self.target_model.backbone(x_t)
-            h_t = self.model.head.obs_in(y_t)
-            z_t = self.target_model.head.project(h_t)
-            h1_t, h2_t = h_t.chunk(2)
+            z_t = self.target_model.head.project(y_t)
             z1_t, z2_t = z_t.chunk(2)
-        
-        # action prediction
-        # mlr: (h1_o, h2_t) vs rssm: (z1_o, z2_t)
-        act1_o = self.model.head.act_predict(h1_o[:, :-1, :], h2_t[:, 1:, :])
-        act2_o = self.model.head.act_predict(h2_o[:, :-1, :], h1_t[:, 1:, :])
 
         #################
         # loss
-        # self-predictive loss
-        sp_loss_fn = ConsistencyLoss()
+        # observation loss (self-predictive)
+        obs_loss_fn = ConsistencyLoss()
         p1_o, p2_o = rearrange(p1_o, 'n t d -> (n t) d'), rearrange(p2_o, 'n t d -> (n t) d')
         z1_t, z2_t = rearrange(z1_t, 'n t d -> (n t) d'), rearrange(z2_t, 'n t d -> (n t) d')
 
-        sp_loss = 0.5 * (sp_loss_fn(p1_o, z2_t) + sp_loss_fn(p2_o, z1_t))
-        sp_loss = torch.mean(sp_loss)
+        obs_loss = 0.5 * (obs_loss_fn(p1_o, z2_t) + obs_loss_fn(p2_o, z1_t))
+        obs_loss = torch.mean(obs_loss)
 
+        # action loss
+        if act_o is not None:
+            act_loss_fn = nn.CrossEntropyLoss()
+            act_o = rearrange(act_o, 'n t d -> (n t) d')
+            act_t = rearrange(act, 'n t -> (n t)')
+            act_loss = act_loss_fn(act_o, act_t)
+            act_acc = torch.mean((torch.argmax(act_o, 1) == act_t).float())
+        else:
+            act_loss = torch.Tensor([0.0]).to(x.device)
+            act_acc = torch.Tensor([0.0]).to(x.device)
+            
         # idm loss
         idm_loss_fn = nn.CrossEntropyLoss()
-        act1_o = rearrange(act1_o, 'n t d -> (n t) d')
-        act2_o = rearrange(act2_o, 'n t d -> (n t) d')
+        idm_o = self.model.head.idm_predictor(torch.cat((z_o[:, :-1, :], z_t[:, 1:, :]), dim=-1))
+        idm_t = act[:, :-1]
+        idm_o = rearrange(idm_o, 'n t d -> (n t) d')
+        idm_t = rearrange(idm_t, 'n t -> (n t)')
+        idm_loss = idm_loss_fn(idm_o, idm_t)
+        idm_acc = torch.mean((torch.argmax(idm_o, 1) == idm_t).float())
         
-        act = act[:, :-1]
-        act = rearrange(act, 'n t -> (n t)')
-        act1, act2 = act.chunk(2)
-        
-        idm_loss = 0.5 * (idm_loss_fn(act1_o, act1) + idm_loss_fn(act2_o, act2))
+        # reward loss
+        if rew_o is not None:
+            rew_loss_fn = nn.MSELoss()
+            rew_o = rearrange(rew_o, 'n t 1 -> (n t 1)')
+            rew = rearrange(rew, 'n t -> (n t)')
+            rew_loss = rew_loss_fn(rew_o, rew)
+        else:
+            rew_loss = torch.Tensor([0.0]).to(x.device)
 
-        loss = sp_loss + self.cfg.idm_lmbda * idm_loss
+        loss = obs_loss + self.cfg.act_lmbda * act_loss + self.cfg.idm_lmbda * idm_loss + self.cfg.rew_lmbda * rew_loss
         
         ###############
         # logs
@@ -144,15 +152,19 @@ class MLRTrainer(BaseTrainer):
         pos_sim = (torch.sum(sim * pos_idx) / torch.sum(pos_idx))
         neg_sim = (torch.sum(sim * (1-pos_idx)) / torch.sum(1-pos_idx))
         pos_neg_diff = pos_sim - neg_sim
-        
+
         # qualitative
         # (n, t, f, c, h, w) -> (t, c, h, w)
         masked_frames = x_o[0, :, 0, :, :, :]
         target_frames = x_t[0, :, 0, :, :, :]
         
         log_data = {'loss': loss.item(),
-                    'sp_loss': sp_loss.item(),
+                    'obs_loss': obs_loss.item(),
+                    'act_loss': act_loss.item(),
                     'idm_loss': idm_loss.item(),
+                    'rew_loss': rew_loss.item(),
+                    'act_acc': act_acc.item(),
+                    'idm_acc': idm_acc.item(),
                     'pos_sim': pos_sim.item(),
                     'neg_sim': neg_sim.item(),
                     'pos_neg_diff': pos_neg_diff.item(),
@@ -160,10 +172,8 @@ class MLRTrainer(BaseTrainer):
                     'target_frames': wandb.Image(target_frames)}
         
         return loss, log_data
-        
 
     def update(self, obs, act, rew, done):
         tau = self.tau_scheduler.get_value()
         for online, target in zip(self.model.parameters(), self.target_model.parameters()):
             target.data = tau * target.data + (1 - tau) * online.data
-

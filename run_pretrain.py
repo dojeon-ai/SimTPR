@@ -53,6 +53,9 @@ def run(args):
         if key in cfg.model.head:
             cfg.model.head[key] = value
             
+        if key in cfg.model.policy:
+            cfg.model.policy[key] = value
+            
         if key in cfg.trainer:
             cfg.trainer[key] = value
     del env
@@ -61,13 +64,13 @@ def run(args):
     logger= WandbTrainerLogger(cfg)
 
     # model
-    model = build_trainer_model(cfg.model)
+    model = build_model(cfg.model)
     
-    # load-pretrained model
-    if logger.use_pretrained_model:
-        pretrained_model_path = logger.get_pretrained_model_path()
-        state_dict = logger.load_state_dict(pretrained_model_path, device)
-        model.load_backbone(state_dict, head=False)
+    # pretrain
+    p_cfg = cfg.pretrain
+    if p_cfg.use_pretrained:
+        artifact = wandb.run.use_artifact(str(p_cfg.artifact_name))
+        model_path = artifact.get_path(p_cfg.model_path).download()
     
     # trainer
     trainer = build_trainer(cfg=cfg.trainer,
@@ -79,7 +82,7 @@ def run(args):
                             model=model)
     
     # train
-    if cfg.debug is True:
+    if cfg.debug:
         trainer.debug()
     else:
         trainer.train()
@@ -91,7 +94,7 @@ def run(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(allow_abbrev=False)
     parser.add_argument('--config_dir',  type=str,    default='atari/pretrain')
-    parser.add_argument('--config_name', type=str,    default='mixed_rssm_impala') 
+    parser.add_argument('--config_name', type=str,    default='mixed_trajformer_impala') 
     parser.add_argument('--overrides',   action='append', default=[])
     args = parser.parse_args()
 

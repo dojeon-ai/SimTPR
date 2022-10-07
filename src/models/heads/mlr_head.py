@@ -16,27 +16,21 @@ class MLRHead(BaseHead):
                  t_step, 
                  in_dim, 
                  proj_dim, 
-                 dec_type, 
                  dec_num_layers):
         super().__init__()
         self.t_step = t_step
         self.in_dim = in_dim
         self.proj_dim = proj_dim
-        self.dec_type = dec_type
         self.mask_token = nn.Parameter(torch.zeros(1, 1, proj_dim))
 
-        if dec_type == 'trans_det':
-            self.dec_in = nn.Linear(in_dim, proj_dim)
-            self.decoder = TransDet(obs_shape=obs_shape, 
-                                    action_size=action_size,
-                                    hid_dim=proj_dim,
-                                    num_layers=dec_num_layers)
-            proj_in_dim = proj_dim
-            
-        else:
-            raise NotImplemented
+        self.obs_in = nn.Linear(in_dim, proj_dim)
+        self.act_in = nn.Embedding(action_size, proj_dim)
+        self.decoder = TransDet(obs_shape=obs_shape, 
+                                action_size=action_size,
+                                hid_dim=proj_dim,
+                                num_layers=dec_num_layers)
                     
-        self.projector = nn.Sequential(nn.Linear(proj_in_dim, proj_dim), 
+        self.projector = nn.Sequential(nn.Linear(proj_dim, proj_dim), 
                                        nn.BatchNorm1d(proj_dim), 
                                        nn.ReLU(), 
                                        nn.Linear(proj_dim, proj_dim), 
@@ -51,21 +45,17 @@ class MLRHead(BaseHead):
                                            nn.ReLU(), 
                                            nn.Linear(proj_dim, action_size))
 
-    def decode(self, x, act):
-        n, t, d = x.shape
-        x_0 = x[:, 0:1, :]
+    def decode(self, obs, act):
+        n, t, d = obs.shape
+        obs_0 = obs[:, 0:1, :]
+        act = self.act_in(act)
         
-        if self.dec_type == 'trans_det':
-            x_a = self.decoder(x, act)
-            # mlr: prediction from a masked token
-            # rssm: prediction from a act token 
-            x_pred = x_a[:, torch.arange(t) * 2, :]
-        else:
-            raise NotImplemented
-                
-        x = torch.cat((x_0, x_pred[:, :-1]), dim=1)
+        # mlr: prediction from a masked token
+        # rssm: prediction from a act token 
+        obs_act = self.decoder(obs, act, dataset_type='demonstration')
+        obs = obs_act[:, torch.arange(t) * 2, :]
         
-        return x
+        return obs
 
     def act_predict(self, x1, x2):
         x = torch.cat((x1, x2), -1)
@@ -87,7 +77,5 @@ class MLRHead(BaseHead):
         return x
 
     def forward(self, x):
-        x = self.project(x)
-        x = self.predict(x)
         info = {}
         return (x, info)

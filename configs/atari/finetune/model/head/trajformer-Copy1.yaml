@@ -1,9 +1,7 @@
-type: rssm
+type: trajformer
 obs_shape: None
 action_size: None
 t_step: None
 in_dim: None
 proj_dim: 256
-dec_strategy: 'tf'
-dec_type: 'trans_det'
 dec_num_layers: 2

@@ -21,7 +21,7 @@ scheduler:
     cycle_mult: 1.0
     max_lr: 0.0003
     min_lr: 0.0003
-    warmup_ratio: 1
+    warmup_ratio: 0.2
     gamma: 1.0
     
 tau_scheduler:
@@ -30,15 +30,13 @@ tau_scheduler:
     step_size: None
 
 # updates
-base_batch_size: 64
-base_num_epochs: 24
 batch_size: None
-num_epochs: None
+num_epochs: 20
 clip_grad_norm: 0.5
-idm_lmbda: 1.0
+idm_lmbda: 0.0
 
 # logging
 log_every: 1000
 eval_every: 1
-save_every: 6
+save_every: 5
 

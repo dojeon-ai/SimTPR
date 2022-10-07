@@ -17,21 +17,9 @@ class WandbTrainerLogger(object):
                    config=dict_cfg,
                    group=cfg.exp_name,
                    settings=wandb.Settings(start_method="thread"))  
-        
-        self._use_pretrained_model = False
-        if cfg.use_artifact:
-            artifact = wandb.run.use_artifact(str(cfg.artifact_name))
-            model_path = artifact.get_path(cfg.model_path).download()
-            self.pretrained_model_path = model_path
-            self._use_pretrained_model = True
-
-        self.model_path = wandb.run.dir + '/model.pth'
-        self.config_path = wandb.run.dir + '/config.json'
-        with open(self.config_path, 'w') as f:
-            json.dump(dict_cfg, f)
-        self.artifacts = {}
 
         self.logger = TrainerLogger()
+        self.artifacts = {}
 
     def update_log(self, **kwargs):
         self.logger.update_log(**kwargs)
@@ -40,9 +28,9 @@ class WandbTrainerLogger(object):
         log_data = self.logger.fetch_log()
         wandb.log(log_data, step=step)
 
-    def save_state_dict(self, model, epoch=1):
-        name = self.cfg.dataloader.game + '/' + str(self.cfg.seed) + '/' + str(epoch) + '/model.pth'
-        path = wandb.run.dir + '/' + name
+    def save_state_dict(self, model, name):
+        path = wandb.run.dir + '/' + self.cfg.dataloader.game + '/' + str(self.cfg.seed) + '/'
+        path = path + str(name) + '/model.pth'
         _dir = os.path.dirname(path)
         if not os.path.exists(_dir):
             os.makedirs(_dir)
@@ -55,13 +43,6 @@ class WandbTrainerLogger(object):
 
     def get_artifacts(self):
         return self.artifacts
-    
-    def get_pretrained_model_path(self):
-        return self.pretrained_model_path
-
-    @property
-    def use_pretrained_model(self):
-        return self._use_pretrained_model
 
 
 class TrainerLogger(object):
