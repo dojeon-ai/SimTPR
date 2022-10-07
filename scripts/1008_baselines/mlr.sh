@@ -1,10 +1,10 @@
 cd ..
 cd ..
 python run_atari_pretrain.py \
-    --group_name baseline \
+    --group_name clt_baseline \
     --exp_name mlr \
     --config_name mixed_mlr_impala \
-    --mode test \
+    --mode full \
     --debug False \
     --num_seeds 1 \
     --num_devices 4 \
