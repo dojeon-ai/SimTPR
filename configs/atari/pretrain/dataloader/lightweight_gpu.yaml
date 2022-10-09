@@ -3,11 +3,11 @@ data_type: 'atari'
 data_path: '/data/private/video_rl/data/atari'
 tmp_data_path: '/data/private/video_rl/data/atari'
 game: 'Boxing' # requires camel case
-dataset_on_gpu: False  # True
-dataset_on_disk: True  # False
+dataset_on_gpu: True
+dataset_on_disk: False
 minimal_action_set: True
-num_workers: 0   # 0 means that the data will be loaded in the main process
-pin_memory: True # False 
+num_workers: 0 # 0 means that the data will be loaded in the main process
+pin_memory: False 
 prefetch_factor: 2 # recommend to use num_workers * 2 
 shuffle_checkpoints: False
 shuffle: False

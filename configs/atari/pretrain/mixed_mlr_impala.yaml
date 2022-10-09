@@ -8,7 +8,7 @@ seed: 0
 
 defaults:
 - _self_
-- dataloader: lightweight
+- dataloader: lightweight_gpu
 - env: atari
 - trainer: mlr
 - model: impala_mlr

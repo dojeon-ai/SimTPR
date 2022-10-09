@@ -167,9 +167,9 @@ class TrajFormerTrainer(BaseTrainer):
                     'idm_acc': idm_acc.item(),
                     'pos_sim': pos_sim.item(),
                     'neg_sim': neg_sim.item(),
-                    'pos_neg_diff': pos_neg_diff.item(),
-                    'masked_frames': wandb.Image(masked_frames),
-                    'target_frames': wandb.Image(target_frames)}
+                    'pos_neg_diff': pos_neg_diff.item()}
+                    #'masked_frames': wandb.Image(masked_frames),
+                    #'target_frames': wandb.Image(target_frames)}
         
         return loss, log_data
 

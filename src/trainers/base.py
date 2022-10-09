@@ -180,7 +180,7 @@ class BaseTrainer():
                 x = rearrange(x, 'n t d -> n (t d)')
             
             xs.append(x.cpu().numpy())
-            ys.append(y.numpy())
+            ys.append(y.cpu().numpy())
             
         xs = np.concatenate(xs)
         ys = np.concatenate(ys)

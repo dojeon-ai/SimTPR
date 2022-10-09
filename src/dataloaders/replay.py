@@ -45,7 +45,11 @@ class ReplayDataset(Dataset):
                 new_filename = tmp_data_path + '/' + game
                 new_filename = os.path.join(new_filename, Path(os.path.basename(filename)[:-3]+".npy"))
                 try:
-                    data_ = np.load(new_filename, mmap_mode="r+")
+                    if dataset_on_disk:
+                        data_ = np.load(new_filename, mmap_mode="r+")
+                    if dataset_on_gpu:
+                        data__ = np.load(new_filename)
+                        data_ = torch.from_numpy(data__)
                 except:
                     g = gzip.GzipFile(filename=filename)
                     data__ = np.load(g)
@@ -57,7 +61,7 @@ class ReplayDataset(Dataset):
 
                     del data___
                     del data__
-                    data_ = np.load(new_filename) #, mmap_mode="r+")
+                    data_ = np.load(new_filename, mmap_mode="r+")
             
             # just load data for action, reward, and terminal
             else:
@@ -74,11 +78,11 @@ class ReplayDataset(Dataset):
                 action_mapping = dict(zip(data_.unique().numpy(),
                                           AtariEnv(game).ale.getMinimalActionSet()))
                 data_.apply_(lambda x: action_mapping[x])
-                
+                                
             if dataset_on_gpu:
                 print("Stored on GPU")
                 data_ = data_.to(device) #cuda(non_blocking=True).to(device)
-                del data___
+                
             data.append(data_)
             setattr(self, filetype, data_)
         
