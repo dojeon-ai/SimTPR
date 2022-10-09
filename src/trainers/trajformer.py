@@ -142,7 +142,8 @@ class TrajFormerTrainer(BaseTrainer):
         else:
             rew_loss = torch.Tensor([0.0]).to(x.device)
 
-        loss = obs_loss + self.cfg.act_lmbda * act_loss + self.cfg.idm_lmbda * idm_loss + self.cfg.rew_lmbda * rew_loss
+        loss = (self.cfg.obs_lmbda * obs_loss + self.cfg.act_lmbda * act_loss + 
+                self.cfg.idm_lmbda * idm_loss + self.cfg.rew_lmbda * rew_loss)
         
         ###############
         # logs

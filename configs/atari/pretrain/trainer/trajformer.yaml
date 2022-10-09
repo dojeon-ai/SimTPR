@@ -30,6 +30,7 @@ tau_scheduler:
     step_size: None
     
 dataset_type: 'trajectory' # video, demonstration, trajectory
+obs_lmbda: 1.0
 act_lmbda: 1.0
 idm_lmbda: 0.0
 rew_lmbda: 1.0
