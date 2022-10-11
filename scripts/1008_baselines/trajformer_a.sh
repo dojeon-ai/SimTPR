@@ -1,7 +1,7 @@
 cd ..
 cd ..
 python run_atari_pretrain.py \
-    --group_name clt_baseline \
+    --group_name baseline \
     --exp_name trajformer_a \
     --config_name mixed_trajformer_impala \
     --mode full \

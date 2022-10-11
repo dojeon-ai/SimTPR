@@ -1,7 +1,7 @@
 cd ..
 cd ..
 python run_atari_pretrain.py \
-    --group_name clt_baseline \
+    --group_name baseline_10 \
     --exp_name mlr \
     --config_name mixed_mlr_impala \
     --mode full \
