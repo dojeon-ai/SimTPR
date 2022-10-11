@@ -66,7 +66,7 @@ def run(args):
     # model
     model = build_model(cfg.model)
     
-    # pretrain
+    # load pretrained
     p_cfg = cfg.pretrain
     if p_cfg.use_pretrained:
         artifact = wandb.run.use_artifact(str(p_cfg.artifact_name))

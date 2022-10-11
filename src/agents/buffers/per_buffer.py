@@ -4,6 +4,7 @@ import numpy as np
 from collections import deque
 from .base import BaseBuffer
 from src.common.train_utils import LinearScheduler
+from einops import rearrange
 
 
 # Segment tree data structure where parent node values are sum/max of children node values
@@ -147,10 +148,10 @@ class PERBuffer(BaseBuffer):
         tree_idxs, transitions, probs = self._get_transitions_from_segments(batch_size)
 
         # encode transitions
-        obs_batch, act_batch, rew_batch, done_batch, next_obs_batch = zip(*transitions)
+        obs_batch, act_batch, return_batch, done_batch, next_obs_batch = zip(*transitions)
         obs_batch = self.encode_obs(obs_batch)  
         act_batch = torch.LongTensor(act_batch).to(self.device)
-        rew_batch = torch.FloatTensor(rew_batch).to(self.device)
+        return_batch = torch.FloatTensor(return_batch).to(self.device)
         done_batch = torch.FloatTensor(done_batch).to(self.device)
         next_obs_batch = self.encode_obs(next_obs_batch)
 
@@ -158,23 +159,42 @@ class PERBuffer(BaseBuffer):
         p_total = self.transitions.total()
         N = self.num_in_buffer
         probs = probs / p_total
-        prior_weight = self.prior_weight_scheduler.get_value(step=N)
+        prior_weight = self.prior_weight_scheduler.get_value()
         weights = (1 / (probs * N) + 1e-5) ** prior_weight # importance sample weights
         # re-normalise by max weight (make update scale consistent w.r.t learning rate)
         weights = weights / max(weights)
         weights = torch.FloatTensor(weights).to(self.device)
         
-        return tree_idxs, obs_batch, act_batch, rew_batch, done_batch, next_obs_batch, weights
+        batch = {
+            'idxs': tree_idxs,
+            'obs': obs_batch,
+            'act': act_batch,
+            'return': return_batch,
+            'done': done_batch,
+            'next_obs': next_obs_batch,
+            'weights': weights
+        }
+        
+        return batch
 
     def encode_obs(self, obs, prediction=False):
         obs = np.array(obs).astype(np.float32)
         obs = obs / 255.0
 
+        # prediction: batch-size: 1
         if prediction:
             obs = np.expand_dims(obs, 0)
 
-        N, S, C, W, H = obs.shape
-        obs = obs.reshape(N, S*C, H, W)
+        # in current form, time-step is fixed to 1
+        obs = np.expand_dims(obs, 1)
+
+        # n: batch_size
+        # t: 1
+        # f: frame_stack
+        # c: channel (atari: 1, dmc: 3)
+        # h: height
+        # w: width
+        n, t, f, c, h, w = obs.shape
         obs = torch.FloatTensor(obs).to(self.device)
 
         return obs

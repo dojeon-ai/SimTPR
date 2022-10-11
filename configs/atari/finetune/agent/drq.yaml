@@ -14,11 +14,9 @@ buffer:
     prior_weight_scheduler: # β
         initial_value: 0.4
         final_value: 1.0
-        step_size: 100000
+        step_size: 196000  # (num_timesteps - min_buffer_size) * optimize_per_step
 
 finetune_type: 'naive'
-backbone_lr_scale: 1.0
-
 optimizer:
     type: 'adam'
     lr: 0.0001
@@ -30,13 +28,18 @@ optimizer:
 v_min: -10
 v_max: 10
 
+# exploration
+train_exploration_type: noisy
+eval_exploration_type: e-greedy
+eval_eps: 0.001
+
 # updates
 double: True
 gamma: 0.99
 batch_size: 32
-updates_per_step: 2
-update_freq: 1
-target_update_freq: 1
+optimize_freq: 1       # loss optimization frequency 
+optimize_per_step: 2   # optimization step per frequency
+update_freq: 1         # target update
 clip_grad_norm: 10
 min_buffer_size: 2000
 

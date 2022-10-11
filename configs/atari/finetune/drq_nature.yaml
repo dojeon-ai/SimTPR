@@ -6,13 +6,9 @@ exp_name: 'drq'
 device: cuda:0
 seed: 0
 
-# pretrained-backbone
-use_artifact: False
-artifact_name: ''
-model_path: ''
-
 defaults:
 - _self_
 - agent: drq
 - env: atari
 - model: nature
+- pretrain: scratch

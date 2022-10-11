@@ -6,16 +6,17 @@ from .base import BasePolicy
 class DQNPolicy(BasePolicy):
     name = 'dqn'
     def __init__(self, 
-                 in_features,
-                 hid_features,
+                 in_dim,
+                 hid_dim,
                  action_size):
         super().__init__()
         self.fc_q = nn.Sequential(
-            nn.Linear(in_features=in_features, out_features=hid_features),
+            nn.Linear(in_dim, hid_dim),
             nn.ReLU(),
-            nn.Linear(in_features=hid_features, out_features=action_size)
+            nn.Linear(hid_dim, action_size)
         )
 
     def forward(self, x):
         q = self.fc_q(x)
-        return q
+        info = {}
+        return q, info

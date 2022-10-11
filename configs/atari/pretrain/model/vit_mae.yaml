@@ -1,4 +1,0 @@
-defaults:
-- backbone: vit
-- head: mae
-- policy: identity

@@ -6,13 +6,9 @@ exp_name: 'der'
 device: cuda:0
 seed: 0
 
-# pretrained-backbone
-use_artifact: False
-artifact_name: ''
-model_path: ''
-
 defaults:
 - _self_
 - agent: der
 - env: atari
-- model: de
+- model: de_nature
+- pretrain: scratch

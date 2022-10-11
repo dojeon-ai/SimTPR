@@ -9,7 +9,6 @@ class DENature(BaseBackbone):
     def __init__(self,
                  obs_shape,
                  action_size,
-                 process_type,
                  init_type):
         super().__init__()
         self.obs_shape = obs_shape
@@ -25,7 +24,8 @@ class DENature(BaseBackbone):
         )
         if init_type == 'orthogonal':
             self.apply(orthogonal_init)
-
+        elif init_type == 'xavier_uniform':
+            self.apply(xavier_uniform_init)
     def forward(self, x):
         n, t, f, c, h, w = x.shape
         x = rearrange(x, 'n t f c h w -> (n t) (f c) h w')

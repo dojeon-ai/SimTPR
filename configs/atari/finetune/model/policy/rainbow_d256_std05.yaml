@@ -1,0 +1,6 @@
+type: rainbow
+in_dim: None
+hid_dim: 256
+action_size: None 
+num_atoms: 51
+noisy_std: 0.5

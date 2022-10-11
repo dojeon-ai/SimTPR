@@ -77,39 +77,15 @@ class WandbAgentLogger(object):
                    reinit=True,
                    settings=wandb.Settings(start_method="thread"))    
 
-        self._use_pretrained_model = False
-        if cfg.use_artifact:
-            artifact = wandb.run.use_artifact(str(cfg.artifact_name))
-            model_path = artifact.get_path(cfg.model_path).download()
-            self.pretrained_model_path = model_path
-            self._use_pretrained_model = True
-
-        self.model_path = wandb.run.dir + '/model.pth'
-        self.config_path = wandb.run.dir + '/config.json'
-        with open(self.config_path, 'w') as f:
-            json.dump(dict_cfg, f)
-        self.artifacts = {}
-
         self.train_logger = AgentLogger(average_len=10)
         self.eval_logger = AgentLogger(average_len=100)
+        self.artifacts = {}
         self.timestep = 0
-
-        # BK 수정
-        if 'dmc' in self.cfg.project_name:
-            self.map_type = 'dmc'
-            self.action_repeat = cfg.env.action_repeat
-        else:
-            self.map_type = 'atari'
     
-
     def step(self, state, reward, done, info, mode='train'):
         if mode == 'train':
             self.train_logger.step(state, reward, done, info)
-            # Bk 수정
-            if self.map_type == 'dmc':
-                self.timestep += 2  # env.step() 50K = DMC 100K benchmark
-            else:
-                self.timestep += 1
+            self.timestep += 1
 
         elif mode == 'eval':
             self.eval_logger.step(state, reward, done, info)
@@ -132,9 +108,9 @@ class WandbAgentLogger(object):
         log_data = {mode+'_'+k: v for k, v in log_data.items() }
         wandb.log(log_data, step=self.timestep)
 
-    def save_state_dict(self, model):
-        name = self.cfg.env.game + '/' + str(self.cfg.seed) + '/' + str(self.timestep) + '/model.pth'
-        path = wandb.run.dir + '/' + name
+    def save_state_dict(self, model, name):
+        path = wandb.run.dir + '/' + self.cfg.dataloader.game + '/' + str(self.cfg.seed) + '/'
+        path = path + str(name) + '/model.pth'
         _dir = os.path.dirname(path)
         if not os.path.exists(_dir):
             os.makedirs(_dir)
@@ -153,13 +129,6 @@ class WandbAgentLogger(object):
 
     def get_game_name(self):
         return self.cfg.env.game
-
-    def get_pretrained_model_path(self):
-        return self.pretrained_model_path
-
-    @property
-    def use_pretrained_model(self):
-        return self._use_pretrained_model
 
 
 class AgentLogger(object):

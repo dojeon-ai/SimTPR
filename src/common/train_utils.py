@@ -237,6 +237,24 @@ def get_grad_norm_stats(model):
 
     return stats
 
+class ScaleGrad(torch.autograd.Function):
+    """Model component to scale gradients back from layer, without affecting
+    the forward pass.  Used e.g. in dueling heads DQN models."""
+
+    @staticmethod
+    def forward(ctx, tensor, scale):
+        """Stores the ``scale`` input to ``ctx`` for application in
+        ``backward()``; simply returns the input ``tensor``."""
+        ctx.scale = scale
+        return tensor
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        """Return the ``grad_output`` multiplied by ``ctx.scale``.  Also returns
+        a ``None`` as placeholder corresponding to (non-existent) gradient of 
+        the input ``scale`` of ``forward()``."""
+        return grad_output * ctx.scale, None
+
 
 ############ DRQ-v2-DMC ###############
 def weight_init(m):

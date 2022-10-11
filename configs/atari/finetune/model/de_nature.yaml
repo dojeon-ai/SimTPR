@@ -1,0 +1,4 @@
+defaults:
+- backbone: de_nature
+- head: identity
+- policy: rainbow_d256_std01

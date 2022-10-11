@@ -37,11 +37,11 @@ rew_lmbda: 1.0
     
 # updates
 batch_size: None
-num_epochs: 20
+num_epochs: 10
 clip_grad_norm: 0.5
 
 # logging
-base_metric: 'reward_f1'
+base_metric: 'act_f1'
 log_every: 1000
 eval_every: 1
 save_every: 5

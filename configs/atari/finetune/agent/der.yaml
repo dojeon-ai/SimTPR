@@ -15,7 +15,6 @@ buffer:
         step_size: 100000
         
 finetune_type: 'naive'
-backbone_lr_scale: 1.0
 
 optimizer:
     type: 'adam'
@@ -28,13 +27,18 @@ optimizer:
 v_min: -10
 v_max: 10
 
+# exploration
+train_exploration_type: noisy
+eval_exploration_type: e-greedy
+eval_eps: 0.001
+
 # updates
 double: True
 gamma: 0.99
 batch_size: 32
-updates_per_step: 1
-update_freq: 1
-target_update_freq: 2000
+optimize_freq: 1       # loss optimization frequency 
+optimize_per_step: 1   # optimization step per frequency
+update_freq: 2000      # target update frequency
 clip_grad_norm: 10
 min_buffer_size: 1600
 

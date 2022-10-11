@@ -1,16 +1,4 @@
-# dqn-nature
-backbone:
-    type: 'nature'
-    obs_shape: None # not pre-defined
-    action_size: None
-    renormalize: False
-    init_type: None
-head:
-    type: None
-policy:
-    type: 'rainbow'
-    in_features: 3136
-    hid_features: 256
-    action_size: None # not pre-defined
-    num_atoms: 51
-    noisy_std: 0.5
+defaults:
+- backbone: nature
+- head: identity
+- policy: rainbow_d256_std05

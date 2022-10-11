@@ -1,17 +1,4 @@
-# dqn-nature
-backbone:
-    type: 'impala'
-    obs_shape: None # not pre-defined
-    action_size: None
-    expansion_ratio: 2
-    renormalize: True
-    init_type: None
-head:
-    type: None
-policy:
-    type: 'rainbow'
-    in_features: 3136
-    hid_features: 512
-    action_size: None # not pre-defined
-    num_atoms: 51
-    noisy_std: 0.5
+defaults:
+- backbone: impala
+- head: identity
+- policy: rainbow_d512_std05

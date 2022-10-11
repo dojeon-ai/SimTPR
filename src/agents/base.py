@@ -1,6 +1,9 @@
 import torch
 import torch.nn as nn
+import torch.optim as optim
+import tqdm
 from abc import *
+from typing import Tuple
 
 
 class BaseAgent(metaclass=ABCMeta):
@@ -50,7 +53,7 @@ class BaseAgent(metaclass=ABCMeta):
             raise ValueError
     
     @abstractmethod
-    def predict(self, obs):
+    def predict(self, obs, mode) -> torch.Tensor:
         pass
     
     @abstractmethod
@@ -66,9 +69,9 @@ class BaseAgent(metaclass=ABCMeta):
         obs = self.train_env.reset()
         for t in tqdm.tqdm(range(1, self.cfg.num_timesteps+1)):
             # forward
-            self.model.train()
+            self.model.train()            
             obs_tensor = self.buffer.encode_obs(obs, prediction=True)
-            action = self.predict(obs_tensor)
+            action = self.predict(obs_tensor, mode='train')
             next_obs, reward, done, info = self.train_env.step(action)
 
             # store new transition
@@ -84,17 +87,18 @@ class BaseAgent(metaclass=ABCMeta):
                                                    self.cfg.clip_grad_norm)
                     self.optimizer.step()
                     self.logger.update_log(mode='train', **log_data)
-            self.update()
+                
+            if (t >= self.cfg.min_buffer_size) & (t % self.cfg.update_freq == 0):
+                self.update()
 
             # evaluate
             if t % self.cfg.eval_every == 0:
-                #self.logger.save_state_dict(model=self.model)
                 self.evaluate()
             
             # log
             self.logger.step(obs, reward, done, info, mode='train')
             if t % self.cfg.log_every == 0:
-                self.logger.write_log()
+                self.logger.write_log(mode='train')
 
             # reset when trajectory is done
             if info.traj_done:
@@ -103,6 +107,28 @@ class BaseAgent(metaclass=ABCMeta):
                 obs = next_obs
 
     def evaluate(self):
-        pass
+        self.model.eval()
+        for _ in tqdm.tqdm(range(self.cfg.num_eval_trajectories)):
+            obs = self.eval_env.reset()
+            while True:
+                # encode last observation to torch.tensor()
+                obs_tensor = self.buffer.encode_obs(obs, prediction=True)
 
+                # evaluation is based on greedy prediction
+                with torch.no_grad():
+                    action = self.predict(obs_tensor, mode='eval')
+
+                # step
+                next_obs, reward, done, info = self.eval_env.step(action)
+
+                # logger
+                self.logger.step(obs, reward, done, info, mode='eval')
+
+                # move on
+                if info.traj_done:
+                    break
+                else:
+                    obs = next_obs
+        
+        self.logger.write_log(mode='eval')
 

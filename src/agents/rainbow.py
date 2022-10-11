@@ -1,17 +1,12 @@
 from .base import BaseAgent
 from src.common.train_utils import LinearScheduler
-from src.common.vis_utils import rollout_attn_maps
+from einops import rearrange
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.optim as optim
 import random
 import copy
-import wandb
-import tqdm
-import numpy as np
-from collections import deque
-from einops import rearrange
+
 
 class RAINBOW(BaseAgent):
     name = 'rainbow'
@@ -37,21 +32,40 @@ class RAINBOW(BaseAgent):
         self.support = torch.linspace(self.v_min, self.v_max, self.num_atoms).to(self.device)
         self.delta_z = (self.v_max - self.v_min) / (self.num_atoms - 1)
 
-    def predict(self, obs):
-        self.model.policy.reset_noise()
-        q_value = (self.model(obs) * self.support.reshape(1,1,-1)).sum(-1)
-        action = torch.argmax(q_value, 1).item()
-
-        return action
-
-    # Acts with an ε-greedy policy (used in evaluation)
-    def predict_greedy(self, obs, eps):
-        p = random.random()
-        if p < eps:
-            action = random.randint(0, self.cfg.action_size-1)
-        else:
-            action = self.predict(obs)
-
+    def predict(self, obs, mode) -> torch.Tensor:
+        q_dist, _ = self.model(obs)
+        q_value = (q_dist * self.support.reshape(1,1,-1)).sum(-1)
+        argmax_action = torch.argmax(q_value, 1).item()
+        
+        if mode == 'train':
+            exploration_type = self.cfg.train_exploration_type
+            
+            if exploration_type == 'noisy':
+                action = argmax_action
+            
+            elif exploration_type == 'e-greedy':
+                eps = self.epsilon_scheduler.get_value()
+                p = random.random()
+                if p < eps:
+                    action = random.randint(0, self.cfg.action_size-1)
+                else:
+                    action = argmax_action
+            else:
+                raise ValueError
+        
+        elif mode == 'eval':
+            exploration_type = self.cfg.eval_exploration_type
+            
+            if exploration_type == 'e-greedy':
+                eps = self.cfg.eval_eps
+                p = random.random()
+                if p < eps:
+                    action = random.randint(0, self.cfg.action_size-1)
+                else:
+                    action = argmax_action  
+            else:
+                raise ValueError
+        
         return action
     
     def update(self):
@@ -63,17 +77,22 @@ class RAINBOW(BaseAgent):
         
         # get samples from buffer
         sample_dict = self.buffer.sample(self.cfg.batch_size)
-        idxs = sample_dict['idxs'], 
-        obs_batch = sample_dict['obs_batch']
-        act_batch = sample_dict['act_batch']
-        return_batch = sample_dict['return_batch']
-        done_batch = sample_dict['done_batch']
-        next_obs_batch = sample_dict['next_obs_batch']
+        idxs = sample_dict['idxs']
+        obs_batch = sample_dict['obs']
+        act_batch = sample_dict['act']
+        return_batch = sample_dict['return']
+        done_batch = sample_dict['done']
+        next_obs_batch = sample_dict['next_obs']
         weights = sample_dict['weights']
         
         # augment the observation if needed
+        n, t, f, c, h, w = obs_batch.shape
+        obs_batch = rearrange(obs_batch, 'n t f c h w -> n (t f c) h w')
+        next_obs_batch = rearrange(next_obs_batch, 'n t f c h w -> n (t f c) h w')
         obs_batch, next_obs_batch = self.aug_func(obs_batch), self.aug_func(next_obs_batch)
-
+        obs_batch = rearrange(obs_batch, 'n (t f c) h w -> n t f c h w', t=t, f=f, c=c)
+        next_obs_batch = rearrange(next_obs_batch, 'n (t f c) h w -> n t f c h w', t=t, f=f, c=c)
+        
         # reset noise
         self.model.policy.reset_noise()
         self.target_model.policy.reset_noise()
@@ -81,7 +100,8 @@ class RAINBOW(BaseAgent):
         # Calculate current state's q-value distribution
         # cur_online_log_q_dist: (N, A, N_A = num_atoms)
         # log_pred_q_dist: (N, N_A)
-        cur_online_log_q_dist = self.model.policy(self.model.backbone(obs_batch), log=True)
+        _, model_log = self.model(obs_batch)
+        cur_online_log_q_dist = model_log['policy']['log']
         act_idx = act_batch.reshape(-1,1,1).repeat(1,1,self.num_atoms)
         log_pred_q_dist = cur_online_log_q_dist.gather(1, act_idx).squeeze(1)
 
@@ -89,9 +109,9 @@ class RAINBOW(BaseAgent):
             # Calculate n-th next state's q-value distribution
             # next_target_q_dist: (n, a, num_atoms)
             # target_q_dist: (n, num_atoms)
-            next_target_q_dist = (self.target_model(next_obs_batch))
+            next_target_q_dist, _ = self.target_model(next_obs_batch)
             if self.cfg.double:
-                next_online_q_dist = (self.model(next_obs_batch))
+                next_online_q_dist, _ = (self.model(next_obs_batch))
                 next_online_q =  (next_online_q_dist * self.support.reshape(1,1,-1)).sum(-1)
                 next_act = torch.argmax(next_online_q, 1)
             else:       
@@ -132,29 +152,4 @@ class RAINBOW(BaseAgent):
             'loss': loss.item()
         }
         return loss, log_data
-    
-    def evaluate(self):
-        self.model.eval()
-        for _ in tqdm.tqdm(range(self.cfg.num_eval_trajectories)):
-            obs = self.eval_env.reset()
-            while True:
-                # encode last observation to torch.tensor()
-                obs_tensor = self.buffer.encode_obs(obs, prediction=True)
-
-                # get action from the model
-                with torch.no_grad():
-                    action = self.predict_greedy(obs_tensor, eps=0.001)
-
-                # step
-                next_obs, reward, done, info = self.eval_env.step(action)
-
-                # logger
-                self.logger.step(obs, reward, done, info, mode='eval')
-
-                # move on
-                if info.traj_done:
-                    break
-                else:
-                    obs = next_obs
-        self.logger.write_log(mode='eval')
         

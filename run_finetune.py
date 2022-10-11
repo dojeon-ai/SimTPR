@@ -55,11 +55,12 @@ def run(args):
     # model
     model = build_model(cfg.model)
 
-    # load-pretrained
-    if logger.use_pretrained_model:
-        pretrained_model_path = logger.get_pretrained_model_path()
-        state_dict = logger.load_state_dict(pretrained_model_path, device)
-        model.load_backbone(state_dict)
+    # load pretrained
+    p_cfg = cfg.pretrain
+    if p_cfg.use_pretrained:
+        artifact = wandb.run.use_artifact(str(p_cfg.artifact_name))
+        model_path = p_cfg.env + '/' + p_cfg.seed + '/' + p_cfg.name
+        model_path = artifact.get_path(model_path).download()
 
     # agent
     agent = build_agent(cfg=cfg.agent,
@@ -78,7 +79,7 @@ def run(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(allow_abbrev=False)
     parser.add_argument('--config_dir',  type=str,    default='atari/finetune')
-    parser.add_argument('--config_name', type=str,    default='drq_vit') 
+    parser.add_argument('--config_name', type=str,    default='drq_impala') 
     parser.add_argument('--overrides',   action='append', default=[])
     args = parser.parse_args()
 

@@ -6,13 +6,9 @@ exp_name: 'drq_impala'
 device: cuda:0
 seed: 0
 
-# pretrained-backbone
-use_artifact: False
-artifact_name: ''
-model_path: ''
-
 defaults:
 - _self_
 - agent: drq
 - env: atari
 - model: impala
+- pretrain: scratch

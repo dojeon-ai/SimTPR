@@ -75,7 +75,6 @@ class AtariEnv(BaseEnv):
             start=0
         )
 
-        
         self.channels = 1 if grayscale else 3
         self.grayscale = grayscale
         self.imagesize = imagesize

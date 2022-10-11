@@ -27,6 +27,8 @@ class Nature(BaseBackbone):
         )
         if init_type == 'orthogonal':
             self.apply(orthogonal_init)
+        elif init_type == 'xavier_uniform':
+            self.apply(xavier_uniform_init)
             
     def forward(self, x):
         n, t, f, c, h, w = x.shape

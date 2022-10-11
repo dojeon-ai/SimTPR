@@ -46,6 +46,7 @@ def build_model(cfg):
     output_dim = out.shape[-1]
     
     # policy
+    policy_cfg['in_dim'] = output_dim
     policy = POLICIES[policy_type]
     policy = policy(**policy_cfg)
     
