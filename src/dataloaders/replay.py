@@ -61,7 +61,13 @@ class ReplayDataset(Dataset):
 
                     del data___
                     del data__
-                    data_ = np.load(new_filename, mmap_mode="r+")
+                    
+                    if dataset_on_disk:
+                        data_ = np.load(new_filename, mmap_mode="r+")
+                    
+                    if dataset_on_gpu:
+                        data__ = np.load(new_filename)
+                        data_ = torch.from_numpy(data__)
             
             # just load data for action, reward, and terminal
             else:

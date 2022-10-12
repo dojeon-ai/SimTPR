@@ -16,4 +16,4 @@ device: 'cuda:0'
 defaults:
 - train: r1_ckpt345_n640_t1_f4
 - act: r2_ckpt50_n64_t1_f4
-- rew: r2_ckpt1_n64_t1_f4
+- rew: r2_ckpt50_n64_t1_f4
