@@ -1,5 +1,5 @@
 from .base import BaseTrainer
-from src.common.losses import ConsistencyLoss
+from src.common.losses import ConsistencyLoss, CURLLoss
 from src.common.train_utils import LinearScheduler
 from src.common.vit_utils import get_random_3d_mask, get_3d_masked_input, restore_masked_input
 from einops import rearrange
@@ -106,7 +106,12 @@ class TrajFormerTrainer(BaseTrainer):
         #################
         # loss
         # observation loss (self-predictive)
-        obs_loss_fn = ConsistencyLoss()
+        if self.cfg.obs_loss_type == 'consistency':
+            obs_loss_fn = ConsistencyLoss()
+        
+        elif self.cfg.obs_loss_type == 'contrastive':
+            obs_loss_fn = CURLLoss(self.cfg.temperature)
+        
         p1_o, p2_o = rearrange(p1_o, 'n t d -> (n t) d'), rearrange(p2_o, 'n t d -> (n t) d')
         z1_t, z2_t = rearrange(z1_t, 'n t d -> (n t) d'), rearrange(z2_t, 'n t d -> (n t) d')
 

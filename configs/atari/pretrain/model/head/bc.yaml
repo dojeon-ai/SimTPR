@@ -1,0 +1,4 @@
+type: bc
+in_dim: None
+hid_dim: 256
+action_size: None

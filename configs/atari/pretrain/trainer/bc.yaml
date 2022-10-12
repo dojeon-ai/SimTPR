@@ -1,5 +1,5 @@
 # defaults
-type: 'curl'
+type: 'bc'
 obs_shape: None
 action_size: None
 t_step: None
@@ -19,17 +19,11 @@ scheduler:
     min_lr: 0.0001
     warmup_ratio: 0.2
     gamma: 1.0
-    
-tau_scheduler:
-    initial_value: 0.99
-    final_value: 0.999
-    step_size: None
 
 # updates
 batch_size: None
 num_epochs: 100
 clip_grad_norm: 0.5
-temperature: 0.1
 
 # logging
 base_metric: 'act_f1'

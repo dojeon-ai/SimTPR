@@ -20,14 +20,18 @@ scheduler:
     warmup_ratio: 0.2
     gamma: 1.0
 
+tau_scheduler:
+    initial_value: 0.99
+    final_value: 0.999
+    step_size: None
+
 # updates
 batch_size: None
-num_epochs: 10
+num_epochs: 100
 clip_grad_norm: 0.5
-tau: 0.99
 
 # logging
 base_metric: 'act_f1'
 log_every: 1000
-eval_every: 1
-save_every: 5
+eval_every: 10
+save_every: 50

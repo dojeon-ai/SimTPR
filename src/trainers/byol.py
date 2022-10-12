@@ -1,5 +1,6 @@
 from .base import BaseTrainer
 from src.common.losses import ConsistencyLoss
+from src.common.train_utils import LinearScheduler
 from einops import rearrange
 import torch
 import torch.nn as nn
@@ -21,7 +22,10 @@ class BYOLTrainer(BaseTrainer):
         super().__init__(cfg, device, 
                          train_loader, eval_act_loader, eval_rew_loader,
                          logger, aug_func, model)  
-        self.target_model = copy.deepcopy(self.model).to(self.device)        
+        self.target_model = copy.deepcopy(self.model).to(self.device)   
+        update_steps = len(self.train_loader) * self.cfg.num_epochs
+        cfg.tau_scheduler.step_size = update_steps
+        self.tau_scheduler = LinearScheduler(**cfg.tau_scheduler)
 
     def compute_loss(self, obs, act, rew, done):
         ##############
@@ -70,6 +74,7 @@ class BYOLTrainer(BaseTrainer):
         return loss, log_data
 
     def update(self, obs, act, rew, done):
+        tau = self.tau_scheduler.get_value()
         for online, target in zip(self.model.parameters(), self.target_model.parameters()):
-            target.data = self.cfg.tau * target.data + (1 - self.cfg.tau) * online.data
+            target.data = tau * target.data + (1 - tau) * online.data
     

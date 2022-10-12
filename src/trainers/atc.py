@@ -6,8 +6,8 @@ import torch
 import torch.nn.functional as F
 import copy
 
-class CURLTrainer(BaseTrainer):
-    name = 'curl'
+class ATCTrainer(BaseTrainer):
+    name = 'atc'
     def __init__(self,
                  cfg,
                  device,
@@ -37,9 +37,11 @@ class CURLTrainer(BaseTrainer):
         x1 = rearrange(x1, 'n (t f c) h w -> n t f c h w', t=t, f=f)
         x2 = rearrange(x2, 'n (t f c) h w -> n t f c h w', t=t, f=f)
         x = torch.cat([x1, x2], axis=0)
-
+        x_o = x[:, :-self.cfg.k_step]
+        x_t = x[:, self.cfg.k_step:]
+        
         # online encoder
-        y_o, _ = self.model.backbone(x)        
+        y_o, _ = self.model.backbone(x_o)   
         z_o = self.model.head.project(y_o)
         p_o = self.model.head.predict(z_o)
         p_o = rearrange(p_o, 'n t d -> (n t) d')
@@ -47,7 +49,7 @@ class CURLTrainer(BaseTrainer):
 
         # target encoder
         with torch.no_grad():
-            y_t, _ = self.target_model.backbone(x)
+            y_t, _ = self.target_model.backbone(x_t)
             z_t = self.target_model.head.project(y_t)
             z_t = rearrange(z_t, 'n t d -> (n t) d')
             z1_t, z2_t = z_t.chunk(2)

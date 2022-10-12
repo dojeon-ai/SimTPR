@@ -8,7 +8,7 @@ seed: 0
 
 defaults:
 - _self_
-- dataloader: lightweight_gpu
+- dataloader: lightweight_gpu_n640_t1
 - env: atari
 - trainer: byol
 - model: impala_byol

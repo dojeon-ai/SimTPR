@@ -32,7 +32,7 @@ def build_model(cfg):
     backbone = backbone(**backbone_cfg)
     
     # get output dim of backbone
-    fake_obs = torch.zeros((1, 1, *backbone_cfg['obs_shape']))
+    fake_obs = torch.zeros((2, 1, *backbone_cfg['obs_shape']))
     out, _ = backbone(fake_obs)
     output_dim = out.shape[-1]
     
