@@ -28,14 +28,10 @@ class BaseAgent(metaclass=ABCMeta):
         self.model = model.to(self.device)
         
         finetune_type = cfg.pop('finetune_type')
-        if finetune_type == 'naive':
-            param_group = self.model.parameters()
-        elif finetune_type == 'freeze':
+        if finetune_type == 'freeze':
             for param in self.model.backbone.parameters():
                 param.requires_grad = False
-            param_group = self.model.parameters()
-        
-        self.optimizer = self._build_optimizer(param_group, cfg.optimizer)
+        self.optimizer = self._build_optimizer(self.model.parameters(), cfg.optimizer)
 
     @classmethod
     def get_name(cls):

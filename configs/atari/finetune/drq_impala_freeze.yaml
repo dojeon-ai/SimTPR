@@ -7,7 +7,7 @@ seed: 0
 
 defaults:
 - _self_
-- agent: drq
+- agent: drq_freeze
 - env: atari
-- model: impala
+- model: impala_freeze
 - pretrain: scratch

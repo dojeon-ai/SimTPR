@@ -31,6 +31,10 @@ class RAINBOW(BaseAgent):
         self.v_max = self.cfg.v_max
         self.support = torch.linspace(self.v_min, self.v_max, self.num_atoms).to(self.device)
         self.delta_z = (self.v_max - self.v_min) / (self.num_atoms - 1)
+        
+        # exploration
+        if cfg.train_exploration_type == 'e-greedy':
+            self.epsilon_scheduler = LinearScheduler(**cfg.train_eps_scheduler)
 
     def predict(self, obs, mode) -> torch.Tensor:
         q_dist, _ = self.model(obs)

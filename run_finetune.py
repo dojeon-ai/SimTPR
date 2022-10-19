@@ -57,11 +57,16 @@ def run(args):
 
     # load pretrained
     p_cfg = cfg.pretrain
+    if eval(p_cfg.env) is None:
+        p_cfg.env = ''.join(word.title() for word in str(cfg.env.game).split('_'))
+
     if p_cfg.use_pretrained:
         artifact = wandb.run.use_artifact(str(p_cfg.artifact_name))
         model_path = p_cfg.env + '/' + p_cfg.seed + '/' + p_cfg.name
         model_path = artifact.get_path(model_path).download()
-
+        state_dict = torch.load(model_path, map_location=device)
+        model.load_state_dict(state_dict['model_state_dict'], strict=False)
+        
     # agent
     agent = build_agent(cfg=cfg.agent,
                         device=device,

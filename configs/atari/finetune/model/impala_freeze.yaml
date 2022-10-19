@@ -1,0 +1,4 @@
+defaults:
+- backbone: impala
+- head: identity
+- policy: rainbow_d512_std0
