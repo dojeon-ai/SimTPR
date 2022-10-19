@@ -70,11 +70,8 @@ class AtariEnv(BaseEnv):
         # Spaces
         self.stack_actions = stack_actions
         self._action_set = self.ale.getMinimalActionSet()
-        self._action_space = spaces.Discrete(
-            n=len(self._action_set),
-            start=0
-        )
-
+        self._action_space = spaces.Discrete(n=len(self._action_set))
+        
         self.channels = 1 if grayscale else 3
         self.grayscale = grayscale
         self.imagesize = imagesize

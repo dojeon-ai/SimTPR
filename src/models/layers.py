@@ -156,12 +156,12 @@ class TransDet(nn.Module):
         num_heads = hid_dim // 64
         mlp_dim = hid_dim * 4
         max_t_step = 256
-        self.norm_in = nn.LayerNorm(hid_dim)
         self.decoder = Transformer(dim=hid_dim, 
                                    depth=num_layers,
                                    heads=num_heads,
                                    mlp_dim=mlp_dim,
                                    dropout=0.0)
+        self.norm_out = nn.LayerNorm(hid_dim)
         self.pos_embed = nn.Parameter((torch.randn(1, max_t_step, hid_dim)), requires_grad=False)
         pos_embed = get_1d_sincos_pos_embed_from_grid(hid_dim, np.arange(max_t_step))
         self.pos_embed.copy_(torch.from_numpy(pos_embed).float().unsqueeze(0))
@@ -206,8 +206,8 @@ class TransDet(nn.Module):
             x[:, torch.arange(t) * 3 + 1, :] += act
             x[:, torch.arange(t) * 3 + 2, :] += rew
         
-        x = self.norm_in(x)
         x, _ = self.decoder(x, attn_mask=attn_mask)
+        x = self.norm_out(x)
         
         return x
     

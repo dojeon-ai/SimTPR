@@ -132,3 +132,4 @@ data/Roms.rar*.mp4
 *.npz
 *.gz
 *.mp4
+vis/wandb/**

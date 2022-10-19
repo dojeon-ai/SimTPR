@@ -109,8 +109,8 @@ class WandbAgentLogger(object):
         wandb.log(log_data, step=self.timestep)
 
     def save_state_dict(self, model, name):
-        path = wandb.run.dir + '/' + self.cfg.dataloader.game + '/' + str(self.cfg.seed) + '/'
-        path = path + str(name) + '/model.pth'
+        name = self.cfg.dataloader.game + '/' + str(self.cfg.seed) + '/' + str(name) + '/model.pth'
+        path = wandb.run.dir + '/' + name
         _dir = os.path.dirname(path)
         if not os.path.exists(_dir):
             os.makedirs(_dir)

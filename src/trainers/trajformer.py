@@ -42,12 +42,11 @@ class TrajFormerTrainer(BaseTrainer):
         x = rearrange(x, 'n (t f c) h w -> n t f c h w', t=t, f=f)
         act = torch.cat([act, act], axis=0)
         rew = torch.cat([rew, rew], axis=0)
-        
+
         # strong augmentation to online: (masking)
         assert self.cfg.mask_type in {'none', 'pixel'}
         if self.cfg.mask_type == 'none':
-            x_o = x
-            x_t = x
+            pass
         
         elif self.cfg.mask_type == 'pixel':
             ph, pw = self.cfg.patch_size[0], self.cfg.patch_size[1]
@@ -69,8 +68,11 @@ class TrajFormerTrainer(BaseTrainer):
             x_o = rearrange(x_o, 'n (t nh nw) (ph pw f c) -> n t f c (nh ph) (nw pw)', 
                             t=t, f=f, c=c, nh=nh, nw=nw, ph=ph, pw=pw)
             
-            x_t = x
-        
+        x_o = x[:, :-1]
+        x_t = x[:, 1:]
+        act = act[:, :-1]
+        rew = rew[:, :-1]
+
         #################
         # forward
         # online encoder
@@ -90,8 +92,9 @@ class TrajFormerTrainer(BaseTrainer):
                          'act': act,
                          'rew': rew}
     
+
         dec_output = self.model.head.decode(dec_input, dataset_type) 
-        obs_o, act_o, rew_o = dec_output['obs'], dec_output['act'], dec_output['rew']        
+        obs_o, act_o, rew_o = dec_output['obs'], dec_output['act'], dec_output['rew']   
         z_o = self.model.head.project(obs_o)
         p_o = self.model.head.predict(z_o)
         z1_o, z2_o = z_o.chunk(2)

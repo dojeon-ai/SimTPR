@@ -202,6 +202,7 @@ class BaseTrainer():
         x_train, y_train, x_test, y_test = self._generate_features_for_probing('reward')
 
         # logistic regression
+        # import error: [import cyanure.estimators] in cyanure.__init__
         classifier = cy.estimators.Classifier(
             loss="logistic",
             penalty="l2",

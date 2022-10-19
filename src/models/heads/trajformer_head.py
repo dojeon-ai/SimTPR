@@ -26,6 +26,7 @@ class TrajFormerHead(BaseHead):
         self.act_in = nn.Embedding(action_size, proj_dim)
         self.rew_in = nn.Linear(1, proj_dim) 
         
+        self.dec_norm = nn.LayerNorm(proj_dim)
         self.decoder = TransDet(obs_shape=obs_shape, 
                                 action_size=action_size,
                                 hid_dim=proj_dim,
@@ -35,8 +36,8 @@ class TrajFormerHead(BaseHead):
         self.projector = nn.Sequential(nn.Linear(proj_in_dim, proj_dim), 
                                        nn.BatchNorm1d(proj_dim), 
                                        nn.ReLU(), 
-                                       nn.Linear(proj_dim, proj_dim), 
-                                       nn.BatchNorm1d(proj_dim, affine=False))
+                                       nn.Linear(proj_dim, proj_dim))
+                                       #nn.BatchNorm1d(proj_dim, affine=False))
         
         self.predictor = nn.Sequential(nn.Linear(proj_dim, proj_dim), 
                                        nn.BatchNorm1d(proj_dim), 
@@ -86,7 +87,7 @@ class TrajFormerHead(BaseHead):
             raise NotImplemented
         
         # decoding
-        obs_0 = obs[:, 0:1, :]        
+        obs = self.dec_norm(obs)
         attn_mask = 1 - torch.ones((n, T, T), device=(obs.device)).tril_()
         x = self.decoder(obs, act, rew, attn_mask, dataset_type)
 
@@ -116,8 +117,6 @@ class TrajFormerHead(BaseHead):
             
         else:
             raise NotImplemented
-
-        obs = torch.cat((obs_0, obs[:, :-1]), dim=1)
         
         x = {'obs': obs,
              'act': act,
@@ -130,6 +129,8 @@ class TrajFormerHead(BaseHead):
         x = rearrange(x, 'n t d-> (n t) d')
         if d != self.proj_dim:
             x = self.obs_in(x)
+            x = self.dec_norm(x)
+            
         x = self.projector(x)
         x = rearrange(x, '(n t) d-> n t d', t=t)
         return x
