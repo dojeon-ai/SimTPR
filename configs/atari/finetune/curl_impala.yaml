@@ -1,13 +1,13 @@
 project_name: 'atari_finetune'
 entity: 'draftrec'
 group_name: 'test'
-exp_name: 'der'
+exp_name: 'curl_impala'
 device: cuda:0
 seed: 0
 
 defaults:
 - _self_
-- agent: der
+- agent: drq_freeze
 - env: atari
-- model: de_nature
-- pretrain: scratch
+- model: impala
+- pretrain: curl

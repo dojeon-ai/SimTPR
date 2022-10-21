@@ -83,7 +83,6 @@ class BaseTrainer():
 
             # log         
             self.logger.update_log(**train_logs)
-            break
 
         self.model.eval()
         eval_logs = self.evaluate()

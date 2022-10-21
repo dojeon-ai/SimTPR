@@ -29,13 +29,6 @@ v_min: -10
 v_max: 10
 
 # exploration
-train_exploration_type: e-greedy
-train_eps_scheduler:
-    initial_value: 1.0
-    final_value: 0.0
-    step_size: 100000  # num_timesteps
-
-eval_exploration_type: e-greedy
 eval_eps: 0.001
 
 # updates
@@ -54,4 +47,4 @@ eval_every: 100000
 vis_every: 2000
 
 # evaluation
-num_eval_trajectories: 10
+num_eval_trajectories: 50

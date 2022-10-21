@@ -31,10 +31,6 @@ class RAINBOW(BaseAgent):
         self.v_max = self.cfg.v_max
         self.support = torch.linspace(self.v_min, self.v_max, self.num_atoms).to(self.device)
         self.delta_z = (self.v_max - self.v_min) / (self.num_atoms - 1)
-        
-        # exploration
-        if cfg.train_exploration_type == 'e-greedy':
-            self.epsilon_scheduler = LinearScheduler(**cfg.train_eps_scheduler)
 
     def predict(self, obs, mode) -> torch.Tensor:
         q_dist, _ = self.model(obs)
@@ -43,32 +39,15 @@ class RAINBOW(BaseAgent):
         
         if mode == 'train':
             exploration_type = self.cfg.train_exploration_type
-            
-            if exploration_type == 'noisy':
-                action = argmax_action
-            
-            elif exploration_type == 'e-greedy':
-                eps = self.epsilon_scheduler.get_value()
-                p = random.random()
-                if p < eps:
-                    action = random.randint(0, self.cfg.action_size-1)
-                else:
-                    action = argmax_action
-            else:
-                raise ValueError
-        
+            action = argmax_action
+
         elif mode == 'eval':
-            exploration_type = self.cfg.eval_exploration_type
-            
-            if exploration_type == 'e-greedy':
-                eps = self.cfg.eval_eps
-                p = random.random()
-                if p < eps:
-                    action = random.randint(0, self.cfg.action_size-1)
-                else:
-                    action = argmax_action  
+            eps = self.cfg.eval_eps
+            p = random.random()
+            if p < eps:
+                action = random.randint(0, self.cfg.action_size-1)
             else:
-                raise ValueError
+                action = argmax_action  
         
         return action
     
@@ -78,6 +57,9 @@ class RAINBOW(BaseAgent):
     def compute_loss(self):
         self.model.train()
         self.target_model.train()
+        if self.cfg.finetune_type == 'freeze':
+            self.model.backbone.eval()
+            self.target_model.backbone.eval()
         
         # get samples from buffer
         sample_dict = self.buffer.sample(self.cfg.batch_size)

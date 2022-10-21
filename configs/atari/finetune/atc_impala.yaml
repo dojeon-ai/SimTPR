@@ -1,7 +1,7 @@
 project_name: 'atari_finetune'
 entity: 'draftrec'
 group_name: 'test'
-exp_name: 'drq_impala'
+exp_name: 'atc_impala'
 device: cuda:0
 seed: 0
 
@@ -9,5 +9,5 @@ defaults:
 - _self_
 - agent: drq_freeze
 - env: atari
-- model: impala_freeze
-- pretrain: scratch
+- model: impala
+- pretrain: atc

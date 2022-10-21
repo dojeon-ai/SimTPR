@@ -27,8 +27,7 @@ class BaseAgent(metaclass=ABCMeta):
         self.aug_func = aug_func.to(self.device)
         self.model = model.to(self.device)
         
-        finetune_type = cfg.pop('finetune_type')
-        if finetune_type == 'freeze':
+        if self.cfg.finetune_type == 'freeze':
             for param in self.model.backbone.parameters():
                 param.requires_grad = False
         self.optimizer = self._build_optimizer(self.model.parameters(), cfg.optimizer)
@@ -65,7 +64,10 @@ class BaseAgent(metaclass=ABCMeta):
         obs = self.train_env.reset()
         for t in tqdm.tqdm(range(1, self.cfg.num_timesteps+1)):
             # forward
-            self.model.train()            
+            self.model.train()        
+            if self.cfg.finetune_type == 'freeze':
+                self.model.backbone.eval()
+            
             obs_tensor = self.buffer.encode_obs(obs, prediction=True)
             action = self.predict(obs_tensor, mode='train')
             next_obs, reward, done, info = self.train_env.step(action)

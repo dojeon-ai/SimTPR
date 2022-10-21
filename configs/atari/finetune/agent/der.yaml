@@ -48,4 +48,4 @@ eval_every: 100000
 vis_every: 2000
 
 # evaluation
-num_eval_trajectories: 10
+num_eval_trajectories: 50

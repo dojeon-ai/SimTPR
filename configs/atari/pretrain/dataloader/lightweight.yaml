@@ -12,7 +12,7 @@ num_workers: 0 # 0 means that the data will be loaded in the main process
 pin_memory: True # False 
 prefetch_factor: 2 # recommend to use num_workers * 2 
 shuffle_checkpoints: False
-shuffle: False
+shuffle: True
 device: 'cuda:0'
 
 defaults:
