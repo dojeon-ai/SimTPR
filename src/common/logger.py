@@ -108,27 +108,8 @@ class WandbAgentLogger(object):
         log_data = {mode+'_'+k: v for k, v in log_data.items() }
         wandb.log(log_data, step=self.timestep)
 
-    def save_state_dict(self, model, name):
-        name = self.cfg.dataloader.game + '/' + str(self.cfg.seed) + '/' + str(name) + '/model.pth'
-        path = wandb.run.dir + '/' + name
-        _dir = os.path.dirname(path)
-        if not os.path.exists(_dir):
-            os.makedirs(_dir)
-        state_dict = {'model_state_dict': model.state_dict()}
-        torch.save(state_dict, path)
-        self.artifacts[path] = name
-    
-    def load_state_dict(self, path, device):
-        return torch.load(path, device)
-
     def get_artifacts(self):
         return self.artifacts
-
-    def get_mean_eval_score(self):
-        return np.mean(self.eval_logger.traj_game_scores_buffer)
-
-    def get_game_name(self):
-        return self.cfg.env.game
 
 
 class AgentLogger(object):

@@ -15,7 +15,9 @@ def build_trainer(cfg,
                   train_loader,
                   eval_act_loader,
                   eval_rew_loader,
+                  env,
                   logger,
+                  agent_logger,
                   model):
     
     cfg = DotMap(OmegaConf.to_container(cfg))
@@ -38,6 +40,8 @@ def build_trainer(cfg,
                    train_loader=train_loader,
                    eval_act_loader=eval_act_loader,
                    eval_rew_loader=eval_rew_loader,
+                   env=env,
                    logger=logger,
+                   agent_logger=agent_logger,
                    aug_func=aug_func,
                    model=model)

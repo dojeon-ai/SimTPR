@@ -4,7 +4,7 @@ from hydra import compose, initialize
 from src.dataloaders import *
 from src.envs import *
 from src.models import *
-from src.common.logger import WandbTrainerLogger
+from src.common.logger import WandbTrainerLogger, AgentLogger
 from src.common.train_utils import set_global_seeds
 from src.trainers import build_trainer
 from typing import List
@@ -58,27 +58,34 @@ def run(args):
             
         if key in cfg.trainer:
             cfg.trainer[key] = value
-    del env
     
     # logger
     logger= WandbTrainerLogger(cfg)
+    agent_logger = AgentLogger(average_len=100)
 
     # model
     model = build_model(cfg.model)
     
     # load pretrained
     p_cfg = cfg.pretrain
+    p_cfg.env = cfg.dataloader.game
+
     if p_cfg.use_pretrained:
         artifact = wandb.run.use_artifact(str(p_cfg.artifact_name))
-        model_path = artifact.get_path(p_cfg.model_path).download()
-    
+        model_path = p_cfg.env + '/' + p_cfg.seed + '/' + p_cfg.name
+        model_path = artifact.get_path(model_path).download()
+        state_dict = torch.load(model_path, map_location=device)
+        model.load_state_dict(state_dict['model_state_dict'], strict=False)
+
     # trainer
     trainer = build_trainer(cfg=cfg.trainer,
                             train_loader=train_loader,
                             eval_act_loader=eval_act_loader,
                             eval_rew_loader=eval_rew_loader,
+                            env=env,
                             device=device,
                             logger=logger,
+                            agent_logger=agent_logger,
                             model=model)
     
     # train

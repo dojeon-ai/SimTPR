@@ -49,3 +49,8 @@ base_metric: 'act_f1'
 log_every: 1000
 eval_every: 1
 save_every: 5
+
+# zero-shot policy evaluation
+eval_policy: False
+num_eval_trajectories: 100
+eval_eps: 0.01

@@ -2,6 +2,7 @@ from abc import *
 from typing import Tuple
 import numpy as np
 import tqdm
+import random
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -20,7 +21,9 @@ class BaseTrainer():
                  train_loader,
                  eval_act_loader,
                  eval_rew_loader,
+                 env,
                  logger,
+                 agent_logger,
                  aug_func,
                  model):
         super().__init__()
@@ -29,7 +32,9 @@ class BaseTrainer():
         self.train_loader = train_loader
         self.eval_act_loader = eval_act_loader
         self.eval_rew_loader = eval_rew_loader
+        self.env = env
         self.logger = logger
+        self.agent_logger = agent_logger
         self.aug_func = aug_func.to(self.device)
         self.model = model.to(self.device)
         self.optimizer = self._build_optimizer(cfg.optimizer)
@@ -150,12 +155,59 @@ class BaseTrainer():
                 
     def evaluate(self) -> dict:
         eval_logs = {}
+        
+        if self.cfg.eval_policy == True:
+            env_eval_logs = self.evaluate_policy()
+            eval_logs.update(env_eval_logs)
+        
         rew_eval_logs = self.probe_reward()
         act_eval_logs = self.probe_action()
         eval_logs.update(rew_eval_logs)
         eval_logs.update(act_eval_logs)
 
         return eval_logs
+    
+    
+    def evaluate_policy(self):
+        self.model.eval()
+        for _ in tqdm.tqdm(range(self.cfg.num_eval_trajectories)):
+            obs = self.env.reset()
+            while True:
+                # encode obs
+                # f,c,h,w -> 1, 1, f, c, h, w
+                obs = np.array(obs).astype(np.float32)
+                obs = obs / 255.0
+                obs = np.expand_dims(obs, 0)
+                obs = np.expand_dims(obs, 1)
+                obs = torch.FloatTensor(obs).to(self.device)
+                
+                # eps-greedy
+                with torch.no_grad():
+                    logits, _ = self.model(obs)
+                argmax_action = torch.argmax(logits, -1)[0].item()
+                eps = self.cfg.eval_eps
+                prob = random.random()
+                
+                if prob < eps:
+                    action = random.randint(0, self.cfg.action_size-1)
+                else:
+                    action = argmax_action  
+
+                # step
+                next_obs, reward, done, info = self.env.step(action)
+
+                # logger
+                self.agent_logger.step(obs, reward, done, info)
+
+                # move on
+                if info.traj_done:
+                    break
+                else:
+                    obs = next_obs
+        
+        log_data = self.agent_logger.fetch_log()
+        
+        return log_data
     
     ######################################################
     # pre-defined evaluation protocol from Zhang et al

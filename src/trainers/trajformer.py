@@ -17,13 +17,15 @@ class TrajFormerTrainer(BaseTrainer):
                  train_loader,
                  eval_act_loader,
                  eval_rew_loader,
+                 env,
                  logger, 
+                 agent_logger,
                  aug_func,
                  model):
         
         super().__init__(cfg, device, 
-                         train_loader, eval_act_loader, eval_rew_loader,
-                         logger, aug_func, model)  
+                         train_loader, eval_act_loader, eval_rew_loader, env,
+                         logger, agent_logger, aug_func, model)  
         self.target_model = copy.deepcopy(self.model).to(self.device)        
         update_steps = len(self.train_loader) * self.cfg.num_epochs
         cfg.tau_scheduler.step_size = update_steps

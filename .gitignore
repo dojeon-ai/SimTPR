@@ -132,4 +132,4 @@ data/Roms.rar*.mp4
 *.npz
 *.gz
 *.mp4
-vis/wandb/**
+vis/atari_100k/wandb/**

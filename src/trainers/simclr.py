@@ -13,13 +13,15 @@ class SimCLRTrainer(BaseTrainer):
                  train_loader,
                  eval_act_loader,
                  eval_rew_loader,
+                 env,
                  logger, 
+                 agent_logger,
                  aug_func,
                  model):
         
         super().__init__(cfg, device, 
-                         train_loader, eval_act_loader, eval_rew_loader,
-                         logger, aug_func, model)  
+                         train_loader, eval_act_loader, eval_rew_loader, env,
+                         logger, agent_logger, aug_func, model)  
 
     def compute_loss(self, obs, act, rew, done):
         n, t, f, c, h, w = obs.shape
