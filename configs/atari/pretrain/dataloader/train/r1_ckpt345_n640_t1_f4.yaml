@@ -4,3 +4,4 @@ batch_size: 640
 t_step: 1
 frame: 4
 max_size: 500000 # 1e6
+shuffle: True
