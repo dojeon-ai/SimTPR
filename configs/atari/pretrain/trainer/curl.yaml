@@ -39,5 +39,5 @@ save_every: 50
 
 # zero-shot policy evaluation
 eval_policy: False
-num_eval_trajectories: 100
+num_eval_trajectories: 50
 eval_eps: 0.01
