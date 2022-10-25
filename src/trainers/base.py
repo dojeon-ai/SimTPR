@@ -298,7 +298,7 @@ class BaseTrainer():
         
         train_dataset = ActDataset(x_train, y_train)
         test_dataset = ActDataset(x_test, y_test)
-        train_dataloader = DataLoader(train_dataset, batch_size=256)
+        train_dataloader = DataLoader(train_dataset, batch_size=256, shuffle=True)
         test_dataloader = DataLoader(test_dataset, batch_size=256)
 
         # linear model & optimizer
