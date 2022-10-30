@@ -1,7 +1,7 @@
 cd ..
 cd ..
 python run_atari_pretrain.py \
-    --group_name baseline_10 \
+    --group_name baseline \
     --exp_name byol \
     --config_name mixed_byol_impala \
     --mode full \

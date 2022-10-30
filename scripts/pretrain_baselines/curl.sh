@@ -1,7 +1,7 @@
 cd ..
 cd ..
 python run_atari_pretrain.py \
-    --group_name baseline_10 \
+    --group_name baseline \
     --exp_name curl \
     --config_name mixed_curl_impala \
     --mode full \
