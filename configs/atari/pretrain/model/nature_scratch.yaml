@@ -1,0 +1,4 @@
+defaults:
+- backbone: nature
+- head: identity
+- policy: identity

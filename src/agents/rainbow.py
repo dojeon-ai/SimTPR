@@ -124,7 +124,9 @@ class RAINBOW(BaseAgent):
                 # += operation do not allow to add value to same index multiple times
                 m[idx].index_add_(0, l[idx], target_q_dist[idx] * (u[idx] - b[idx]))
                 m[idx].index_add_(0, u[idx], target_q_dist[idx] * (b[idx] - l[idx]))
-        
+            
+        # kl_div: m * torch.log(m) - log_pred_q_dist
+                
         # kl-divergence 
         kl_div = -torch.sum(m * log_pred_q_dist, -1)
         loss = (kl_div * weights).mean()

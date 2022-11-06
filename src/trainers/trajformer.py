@@ -137,7 +137,7 @@ class TrajFormerTrainer(BaseTrainer):
         # idm loss
         idm_loss_fn = nn.CrossEntropyLoss()
         idm_o = self.model.head.idm_predictor(torch.cat((z_o[:, :-1, :], z_t[:, 1:, :]), dim=-1))
-        idm_t = act[:, :-1]
+        idm_t = act[:, 1:]
         idm_o = rearrange(idm_o, 'n t d -> (n t) d')
         idm_t = rearrange(idm_t, 'n t -> (n t)')
         idm_loss = idm_loss_fn(idm_o, idm_t)

@@ -1,15 +1,15 @@
 project_name: 'atari_pretrain'
 entity: 'draftrec'
 group_name: 'test'
-exp_name: 'simclr_impala'
+exp_name: 'scratch_impala'
 device: cuda:0
 debug: True
 seed: 0
 
 defaults:
 - _self_
-- dataloader: lightweight_gpu_n640_t1
+- dataloader: lightweight_gpu
 - env: atari
-- trainer: simclr
-- model: impala_simclr
+- trainer: scratch
+- model: nature_scratch
 - pretrain: scratch
