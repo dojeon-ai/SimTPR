@@ -25,12 +25,12 @@ class ScratchTrainer(BaseTrainer):
                          train_loader, eval_act_loader, eval_rew_loader, env,
                          logger, agent_logger, aug_func, model)  
 
-    def compute_loss(self, obs, act, rew, done):
+    def compute_loss(self, obs, act, rew, done, rtg):
         loss = torch.zeros(1, requires_grad=True)
         log_data = {}
         
         return loss, log_data
 
-    def update(self, obs, act, rew, done):
+    def update(self, obs, act, rew, done, rtg):
         pass
     

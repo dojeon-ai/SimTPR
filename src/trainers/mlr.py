@@ -34,7 +34,7 @@ class MLRTrainer(BaseTrainer):
         cfg.tau_scheduler.step_size = update_steps
         self.tau_scheduler = LinearScheduler(**cfg.tau_scheduler)
     
-    def compute_loss(self, obs, act, rew, done):
+    def compute_loss(self, obs, act, rew, done, rtg):
         ####################
         # augmentation
         n, t, f, c, h, w = obs.shape
@@ -164,7 +164,7 @@ class MLRTrainer(BaseTrainer):
         return loss, log_data
         
 
-    def update(self, obs, act, rew, done):
+    def update(self, obs, act, rew, done, rtg):
         tau = self.tau_scheduler.get_value()
         for online, target in zip(self.model.parameters(), self.target_model.parameters()):
             target.data = tau * target.data + (1 - tau) * online.data

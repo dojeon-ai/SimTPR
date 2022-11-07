@@ -1,16 +1,13 @@
 from .base import BaseTrainer
-from src.common.losses import ConsistencyLoss, CURLLoss
 from src.common.train_utils import LinearScheduler
-from src.common.vit_utils import get_random_3d_mask, get_3d_masked_input, restore_masked_input
 from einops import rearrange
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import copy
-import wandb
 
-class TrajFormerTrainer(BaseTrainer):
-    name = 'trajformer'
+class DTTrainer(BaseTrainer):
+    name = 'dt'
     def __init__(self,
                  cfg,
                  device,
@@ -26,49 +23,27 @@ class TrajFormerTrainer(BaseTrainer):
         super().__init__(cfg, device, 
                          train_loader, eval_act_loader, eval_rew_loader, env,
                          logger, agent_logger, aug_func, model)  
-        self.target_model = copy.deepcopy(self.model).to(self.device)        
-        update_steps = len(self.train_loader) * self.cfg.num_epochs
-        cfg.tau_scheduler.step_size = update_steps
-        self.tau_scheduler = LinearScheduler(**cfg.tau_scheduler)
+        
+
+        
+        
+    
         
     def compute_loss(self, obs, act, rew, done, rtg):
         ####################
         # augmentation
         n, t, f, c, h, w = obs.shape
         
-        # weak augmentation to both online & target
         x = obs / 255.0
         x = rearrange(x, 'n t f c h w -> n (t f c) h w')
-        x1, x2 = self.aug_func(x), self.aug_func(x)
-        x = torch.cat([x1, x2], axis=0)        
-        x = rearrange(x, 'n (t f c) h w -> n t f c h w', t=t, f=f)
-        act = torch.cat([act, act], axis=0)
-        rew = torch.cat([rew, rew], axis=0)
+        x = self.aug_func(x)
+        x = rearrange(x, 'n (t f c) h w -> n t f c h w', t=t, f=f, c=c)
 
-        # strong augmentation to online: (masking)
-        assert self.cfg.mask_type in {'none', 'pixel'}
-        if self.cfg.mask_type == 'none':
-            pass
+        import pdb
+        pdb.set_trace()
         
-        elif self.cfg.mask_type == 'pixel':
-            ph, pw = self.cfg.patch_size[0], self.cfg.patch_size[1]
-            nh, nw = (h // ph), (w//pw)
-            np = nh * nw
-            
-            # generate random-mask
-            video_shape = (2*n, t, np)
-            ids_keep, _, ids_restore = get_random_3d_mask(video_shape, 
-                                                          self.cfg.mask_ratio,
-                                                          self.cfg.mask_strategy)
-            ids_keep = ids_keep.to(x.device)
-            ids_restore = ids_restore.to(x.device)
-            
-            # mask & restore
-            x_o = rearrange(x, 'n t f c (nh ph) (nw pw) -> n t (nh nw) (ph pw f c)', ph=ph, pw=pw)
-            x_o = get_3d_masked_input(x_o, ids_keep, self.cfg.mask_strategy)
-            x_o = restore_masked_input(x_o, ids_restore)
-            x_o = rearrange(x_o, 'n (t nh nw) (ph pw f c) -> n t f c (nh ph) (nw pw)', 
-                            t=t, f=f, c=c, nh=nh, nw=nw, ph=ph, pw=pw)
+        
+        
             
         x_o = x[:, :-1]
         x_t = x[:, 1:]
@@ -183,8 +158,3 @@ class TrajFormerTrainer(BaseTrainer):
                     #'target_frames': wandb.Image(target_frames)}
         
         return loss, log_data
-
-    def update(self, obs, act, rew, done, rtg):
-        tau = self.tau_scheduler.get_value()
-        for online, target in zip(self.model.parameters(), self.target_model.parameters()):
-            target.data = tau * target.data + (1 - tau) * online.data

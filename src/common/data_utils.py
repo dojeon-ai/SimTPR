@@ -2,7 +2,7 @@ import torch
 import numpy as np
 from src.common.class_utils import namedarraytuple
 
-OfflineSamples = namedarraytuple("OfflineSamples", ["observation", "action", "reward", "done"])
+OfflineSamples = namedarraytuple("OfflineSamples", ["observation", "action", "reward", "done", "rtg"])
 
 class CacheEfficientSampler(torch.utils.data.Sampler):
     def __init__(self, num_blocks, block_len, num_repeats=20, generator=None):
@@ -116,22 +116,7 @@ def sanitize_batch(batch: OfflineSamples) -> OfflineSamples:
         col = idx[1]
         batch.observation[row, :col] = 0
         batch.reward[row, :col] = 0
+        batch.rtg[row, :col] = 0
         
     return batch
 
-
-def get_from_dataloaders(dataloaders):
-    observations = [dataloader.observations for dataloader in dataloaders]
-    rewards = [dataloader.rewards for dataloader in dataloaders]
-    actions = [dataloader.actions for dataloader in dataloaders]
-    dones = [dataloader.terminal for dataloader in dataloaders]
-
-    return observations, rewards, actions, dones
-
-
-def assign_to_dataloaders(dataloaders, observations, rewards, actions, dones):
-    for dl, obs, rew, act, done, flow, hog in zip(dataloaders, observations, rewards, actions, dones):
-        dl.observations = obs
-        dl.rewards = rew
-        dl.actions = act
-        dl.terminal = done

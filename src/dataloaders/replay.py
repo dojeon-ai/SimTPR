@@ -35,7 +35,7 @@ class ReplayDataset(Dataset):
         data = []
         self.dataset_on_disk = dataset_on_disk
         assert not (dataset_on_disk and dataset_on_gpu)
-        filetypes = ['observation', 'action', 'reward', 'terminal']
+        filetypes = ['observation', 'action', 'reward', 'terminal', 'rtg']
         for i, filetype in enumerate(filetypes):
             filename = Path(data_path + '/' + f'{game}/{filetype}_{run}_{checkpoint}.gz')
             print(f'Loading {filename}')
@@ -70,7 +70,7 @@ class ReplayDataset(Dataset):
                         data_ = torch.from_numpy(data__)
             
             # just load data for action, reward, and terminal
-            else:
+            elif filetype in ['action', 'reward', 'terminal']:
                 g = gzip.GzipFile(filename=filename)
                 data__ = np.load(g)
 
@@ -78,7 +78,78 @@ class ReplayDataset(Dataset):
                 data___ = np.copy(data__[:max_size])
                 print(f'Using {data___.size * data___.itemsize} bytes')
                 del data__
-                data_ = torch.from_numpy(data___)                            
+                data_ = torch.from_numpy(data___)            
+                
+            # rtg is not a standard dataset from DQN@200M
+            # generate the rtg dataset if not exists
+            elif filetype == 'rtg':
+                new_filename = tmp_data_path + '/' + game
+                new_filename = os.path.join(new_filename, Path(os.path.basename(filename)[:-3]+".npy"))
+                try:
+                    if dataset_on_disk:
+                        data_ = np.load(new_filename, mmap_mode="r+")
+                    if dataset_on_gpu:
+                        data__ = np.load(new_filename)
+                        data_ = torch.from_numpy(data__)
+                
+                    # maximum size of rtg data does not match the option
+                    # re-generate the dataset by moving to the exception
+                    if len(data_) != max_size:
+                        raise ValueError
+                
+                except:
+                    # (ATARI) for safeness
+                    rewards = torch.nan_to_num(self.reward).sign() 
+                    
+                    # compute returns for each trajectory
+                    G = 0
+                    traj_start_idx = 0
+                    return_per_trajectory = []
+                    for idx in tqdm.tqdm(range(len(rewards))):
+                        reward = rewards[idx].item()
+                        terminal = self.terminal[idx].item()
+                        
+                        G += reward
+                        if terminal == 1:
+                            return_per_trajectory.append(G)
+                            G = 0
+                            traj_start_idx = idx+1
+                    
+                    # last trajectory
+                    return_per_trajectory.append(G)
+                    
+                    print(f'num trajectories in data {len(return_per_trajectory)}')
+                    print(f'average return of trajectories {np.mean(return_per_trajectory)}')        
+                            
+                    # compute rtg for each interaction    
+                    rtgs = np.zeros_like(self.reward.cpu().numpy())
+                    traj_idx = 0
+                    G = return_per_trajectory[traj_idx]
+                    for idx in tqdm.tqdm(range(len(rewards))):
+                        reward = rewards[idx].item()
+                        terminal = self.terminal[idx].item()
+                        
+                        rtgs[idx] = G
+                        G -= reward
+                        
+                        if terminal == 1:
+                            traj_idx += 1
+                            G = return_per_trajectory[traj_idx]
+                            
+                    data__ = rtgs                    
+                    np.save(new_filename, data__,)   
+                    print("Stored on disk at {}".format(new_filename))
+                    del data__
+                    
+                    if dataset_on_disk:
+                        data_ = np.load(new_filename, mmap_mode="r+")
+                    
+                    if dataset_on_gpu:
+                        data__ = np.load(new_filename)
+                        data_ = torch.from_numpy(data__)
+  
+            else:
+                raise ValueError
             
             if ((filetype == 'action') and (data_type == 'atari') and (not minimal_action_set)):
                 action_mapping = dict(zip(data_.unique().numpy(),
@@ -101,7 +172,7 @@ class ReplayDataset(Dataset):
     def __len__(self) -> int:
         return self.effective_size
 
-    def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         time_ind = index % self.effective_size
         sl = slice(time_ind, time_ind + self.t + (self.f-1))
         if self.dataset_on_disk:
@@ -112,7 +183,8 @@ class ReplayDataset(Dataset):
         return tuple([obs,
                      self.action[sl],
                      self.reward[sl],
-                     self.terminal[sl]])
+                     self.terminal[sl],
+                     self.rtg[sl]])
 
 
 class MultiReplayDataset(Dataset):
@@ -154,7 +226,7 @@ class MultiReplayDataset(Dataset):
     def __len__(self) -> int:
         return len(self.datasets) * len(self.datasets[0])
 
-    def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         ckpt_index = index % len(self.datasets)
         index = index // len(self.datasets)
         return self.datasets[ckpt_index][index]
@@ -213,8 +285,8 @@ class ReplayDataLoader(BaseLoader):
             [returns] observation: (n, t, f*c, h, w) c=1 in atari, c=3 in dmc
             """
             f = self.frame
-            observation, action, reward, done = torch.utils.data.dataloader.default_collate(batch)
-                          
+            observation, action, reward, done, rtg = torch.utils.data.dataloader.default_collate(batch)
+                
             # grey-scale image for atari
             if self.data_type == 'atari':
                 observation = rearrange(observation, 'n t h w -> n t 1 h w')
@@ -225,6 +297,7 @@ class ReplayDataLoader(BaseLoader):
             action = action.long()
             reward = torch.nan_to_num(reward).sign()
             done = done.bool()
+            rtg = rtg.float()
             
             # frame-stack
             if f != 1:
@@ -234,9 +307,10 @@ class ReplayDataLoader(BaseLoader):
                 action = action[:, f-1:]
                 reward = reward[:, f-1:]
                 done = done[:, f-1:]
+                rtg = rtg[:, f-1:]
             
             # when done is True, func sanitize batch zeros out observation and reward
-            return sanitize_batch(OfflineSamples(observation, action, reward, done))
+            return sanitize_batch(OfflineSamples(observation, action, reward, done, rtg))
 
         dataset = MultiReplayDataset(self.data_type,
                                     self.data_path, 
@@ -251,11 +325,6 @@ class ReplayDataLoader(BaseLoader):
                                     self.dataset_on_gpu, 
                                     self.dataset_on_disk,
                                     self.device)
-
-        if self.shuffle_checkpoints:
-            data = get_from_dataloaders(dataset.datasets)
-            shuffled_data = shuffle_batch_dim(*data)
-            assign_to_dataloaders(dataset.datasets, *shuffled_data)
 
         dataloader = DataLoader(dataset, 
                                 batch_size=self.batch_size,

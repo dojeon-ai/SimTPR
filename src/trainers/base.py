@@ -62,12 +62,12 @@ class BaseTrainer():
                                              **scheduler_cfg)
  
     @abstractmethod
-    def compute_loss(self, obs, act, rew, done) -> Tuple[torch.Tensor, dict]:
+    def compute_loss(self, obs, act, rew, done, rtg) -> Tuple[torch.Tensor, dict]:
         pass
     
     @abstractmethod
     # custom model update other than backpropagation (e.g., ema)
-    def update(self, obs, act, rew, done):
+    def update(self, obs, act, rew, done, rtg):
         pass
     
     def debug(self):
@@ -78,13 +78,14 @@ class BaseTrainer():
             act = batch.action.to(self.device)
             rew = batch.reward.to(self.device)
             done = batch.done.to(self.device)
-            loss, train_logs = self.compute_loss(obs, act, rew, done)
+            rtg = batch.rtg.to(self.device)
+            loss, train_logs = self.compute_loss(obs, act, rew, done, rtg)
 
             # backward
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
-            self.update(obs, act, rew, done)
+            self.update(obs, act, rew, done, rtg)
 
             # log         
             self.logger.update_log(**train_logs)
@@ -116,7 +117,8 @@ class BaseTrainer():
                 act = batch.action.to(self.device)
                 rew = batch.reward.to(self.device)
                 done = batch.done.to(self.device)
-                loss, train_logs = self.compute_loss(obs, act, rew, done)
+                rtg = batch.rtg.to(self.device)
+                loss, train_logs = self.compute_loss(obs, act, rew, done, rtg)
                 
                 # backward
                 self.optimizer.zero_grad()
@@ -125,7 +127,7 @@ class BaseTrainer():
                 train_logs.update(grad_stats)
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.cfg.clip_grad_norm)
                 self.optimizer.step()
-                self.update(obs, act, rew, done)
+                self.update(obs, act, rew, done, rtg)
                     
                 # log         
                 self.logger.update_log(**train_logs)

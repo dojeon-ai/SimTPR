@@ -23,7 +23,7 @@ class SimCLRTrainer(BaseTrainer):
                          train_loader, eval_act_loader, eval_rew_loader, env,
                          logger, agent_logger, aug_func, model)  
 
-    def compute_loss(self, obs, act, rew, done):
+    def compute_loss(self, obs, act, rew, done, rtg):
         n, t, f, c, h, w = obs.shape
         # augmentation
         x = obs / 255.0
