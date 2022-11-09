@@ -211,3 +211,44 @@ class TransDet(nn.Module):
         
         return x
     
+    
+class TransRtgDet(nn.Module):
+    def __init__(self, obs_shape, action_size, hid_dim, num_layers):
+        super().__init__()
+        num_heads = hid_dim // 64
+        mlp_dim = hid_dim * 4
+        max_t_step = 256
+        self.decoder = Transformer(dim=hid_dim, 
+                                   depth=num_layers,
+                                   heads=num_heads,
+                                   mlp_dim=mlp_dim,
+                                   dropout=0.0)
+        self.norm_out = nn.LayerNorm(hid_dim)
+        self.pos_embed = nn.Parameter((torch.randn(1, max_t_step, hid_dim)), requires_grad=False)
+        pos_embed = get_1d_sincos_pos_embed_from_grid(hid_dim, np.arange(max_t_step))
+        self.pos_embed.copy_(torch.from_numpy(pos_embed).float().unsqueeze(0))
+        self.apply(xavier_uniform_init)
+
+    def forward(self, rtg, obs, act, attn_mask=None):
+        """
+        [params] rtg: (n, t)
+        [params] obs: (n, t, d)
+        [params] act: (n, t)
+        [returns] x: (n, 3*t, d) 
+        """
+        n, t, d = obs.shape
+
+        rtg = rtg + self.pos_embed[:, :t, :]
+        obs = obs + self.pos_embed[:, :t, :]
+        act = act + self.pos_embed[:, :t, :]
+        
+        x = torch.zeros((n, 3 * t, d), device=(obs.device))
+        x[:, torch.arange(t) * 3, :] += rtg
+        x[:, torch.arange(t) * 3 + 1, :] += obs
+        x[:, torch.arange(t) * 3 + 2, :] += act
+        
+        x, _ = self.decoder(x, attn_mask=attn_mask)
+        x = self.norm_out(x)
+        
+        return x
+    

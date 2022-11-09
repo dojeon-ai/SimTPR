@@ -34,6 +34,7 @@ obs_lmbda: 1.0
 act_lmbda: 1.0
 idm_lmbda: 0.0
 rew_lmbda: 1.0
+do_bc_mask: False
 
 obs_loss_type: consistency # consistency, contrastive
 temperature: None # temperature is used when loss_type is contrastive

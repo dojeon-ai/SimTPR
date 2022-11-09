@@ -58,7 +58,7 @@ class TrajFormerHead(BaseHead):
                                            nn.Linear(proj_dim, 1),
                                            nn.Tanh()) 
 
-    def decode(self, x, dataset_type):        
+    def decode(self, x, dataset_type, do_bc_mask):        
         n, t, _ = x['obs'].shape
         
         # embedding
@@ -68,6 +68,7 @@ class TrajFormerHead(BaseHead):
             obs = self.obs_in(x['obs'])
             act = None
             rew = None
+            bc_mask = torch.zeros((1,1), device=obs.device)
             
         elif dataset_type == 'demonstration':
             # x = (o_1, a_1, o_2, a_2, ...)
@@ -75,6 +76,8 @@ class TrajFormerHead(BaseHead):
             obs = self.obs_in(x['obs'])
             act = self.act_in(x['act'])
             rew = None
+            bc_mask = torch.zeros((2,2), device=obs.device)
+            bc_mask[0][1] = 1
             
         elif dataset_type == 'trajectory':
             # x = (o_1, a_1, r_1, o_2, a_2, r_2, ...)
@@ -82,6 +85,9 @@ class TrajFormerHead(BaseHead):
             obs = self.obs_in(x['obs'])
             act = self.act_in(x['act'])
             rew = self.rew_in(x['rew'].unsqueeze(-1))
+            bc_mask = torch.zeros((3,3), device=obs.device)
+            bc_mask[0][1] = 1
+            bc_mask[0][2] = 1
             
         else:
             raise NotImplemented
@@ -89,6 +95,11 @@ class TrajFormerHead(BaseHead):
         # decoding
         obs = self.dec_norm(obs)
         attn_mask = 1 - torch.ones((n, T, T), device=(obs.device)).tril_()
+        bc_mask = bc_mask.unsqueeze(0).repeat(n, t,t)
+        if do_bc_mask:
+            # OR operation
+            attn_mask = (attn_mask + bc_mask).bool().float()
+
         x = self.decoder(obs, act, rew, attn_mask, dataset_type)
 
         # prediction

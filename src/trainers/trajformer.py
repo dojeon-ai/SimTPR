@@ -82,6 +82,7 @@ class TrajFormerTrainer(BaseTrainer):
         
         # decode
         dataset_type = self.cfg.dataset_type 
+        do_bc_mask = self.cfg.do_bc_mask
         if dataset_type == 'video':
             dec_input = {'obs': y_o}
             
@@ -95,7 +96,7 @@ class TrajFormerTrainer(BaseTrainer):
                          'rew': rew}
     
 
-        dec_output = self.model.head.decode(dec_input, dataset_type) 
+        dec_output = self.model.head.decode(dec_input, dataset_type, do_bc_mask) 
         obs_o, act_o, rew_o = dec_output['obs'], dec_output['act'], dec_output['rew']   
         z_o = self.model.head.project(obs_o)
         p_o = self.model.head.predict(z_o)

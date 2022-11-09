@@ -8,7 +8,7 @@ seed: 0
 
 defaults:
 - _self_
-- dataloader: lightweight_gpu
+- dataloader: lightweight_gpu_n64_t10
 - env: atari
 - trainer: dt
 - model: impala_dt
