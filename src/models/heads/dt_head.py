@@ -28,9 +28,9 @@ class DTHead(BaseHead):
          
         self.dec_norm = nn.LayerNorm(proj_dim)
         self.decoder = TransRtgDet(obs_shape=obs_shape, 
-                                action_size=action_size,
-                                hid_dim=proj_dim,
-                                num_layers=dec_num_layers)
+                                   action_size=action_size,
+                                   hid_dim=proj_dim,
+                                   num_layers=dec_num_layers)
         proj_in_dim = proj_dim        
         self.act_predictor = nn.Sequential(nn.Linear(proj_dim, proj_dim), 
                                            nn.ReLU(), 
