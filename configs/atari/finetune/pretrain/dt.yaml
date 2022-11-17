@@ -1,5 +1,5 @@
 use_pretrained: True
-artifact_name: 'atari_pretrain/atc:latest'
+artifact_name: 'atari_pretrain/dt:latest'
 env: None
 seed: '0'
 name: '10/model.pth'

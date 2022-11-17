@@ -79,10 +79,9 @@ class MLRTrainer(BaseTrainer):
         # forward
         # online encoder
         y_o, _ = self.model.backbone(x_o)        
-        h_o = self.model.head.obs_in(y_o)
         
         if self.cfg.mask_type == 'pixel':
-            obs_o = self.model.head.decode(h_o, act) # t=0: identity, t=1...T: predicted
+            obs_o = self.model.head.decode(y_o, act) # t=0: identity, t=1...T: predicted
                 
         elif self.cfg.mask_type == 'latent':
             video_shape = (2*n, t)
@@ -90,53 +89,32 @@ class MLRTrainer(BaseTrainer):
             ids_keep = ids_keep.to(x.device)
             ids_restore = ids_restore.to(x.device)
             
-            hm_o = get_1d_masked_input(h_o, ids_keep)
-            mask_tokens = self.model.head.mask_token.repeat(2*n, t-hm_o.shape[1], 1)
-            hm_o = restore_masked_input(hm_o, ids_restore, mask_tokens)
+            ym_o = get_1d_masked_input(y_o, ids_keep)
+            mask_tokens = self.model.head.mask_token.repeat(2*n, t-ym_o.shape[1], 1)
+            ym_o = restore_masked_input(ym_o, ids_restore, mask_tokens)
             
             # decode on the masked latent
-            obs_o = self.model.head.decode(hm_o, act) # t=0: identity, t=1...T: predicted
+            obs_o = self.model.head.decode(ym_o, act) # t=0: identity, t=1...T: predicted
 
         z_o = self.model.head.project(obs_o)
         p_o = self.model.head.predict(z_o)
-        h1_o, h2_o = h_o.chunk(2)
         p1_o, p2_o = p_o.chunk(2)
         
         # target encoder
         with torch.no_grad():
             y_t, _ = self.target_model.backbone(x_t)
-            h_t = self.model.head.obs_in(y_t)
-            z_t = self.target_model.head.project(h_t)
-            h1_t, h2_t = h_t.chunk(2)
+            z_t = self.target_model.head.project(y_t)
             z1_t, z2_t = z_t.chunk(2)
-        
-        # action prediction
-        # mlr: (h1_o, h2_t) vs rssm: (z1_o, z2_t)
-        act1_o = self.model.head.act_predict(h1_o[:, :-1, :], h2_t[:, 1:, :])
-        act2_o = self.model.head.act_predict(h2_o[:, :-1, :], h1_t[:, 1:, :])
 
         #################
         # loss
         # self-predictive loss
-        sp_loss_fn = ConsistencyLoss()
+        loss_fn = ConsistencyLoss()
         p1_o, p2_o = rearrange(p1_o, 'n t d -> (n t) d'), rearrange(p2_o, 'n t d -> (n t) d')
         z1_t, z2_t = rearrange(z1_t, 'n t d -> (n t) d'), rearrange(z2_t, 'n t d -> (n t) d')
 
-        sp_loss = 0.5 * (sp_loss_fn(p1_o, z2_t) + sp_loss_fn(p2_o, z1_t))
-        sp_loss = torch.mean(sp_loss)
-
-        # idm loss
-        idm_loss_fn = nn.CrossEntropyLoss()
-        act1_o = rearrange(act1_o, 'n t d -> (n t) d')
-        act2_o = rearrange(act2_o, 'n t d -> (n t) d')
-        
-        act = act[:, :-1]
-        act = rearrange(act, 'n t -> (n t)')
-        act1, act2 = act.chunk(2)
-        
-        idm_loss = 0.5 * (idm_loss_fn(act1_o, act1) + idm_loss_fn(act2_o, act2))
-
-        loss = sp_loss + self.cfg.idm_lmbda * idm_loss
+        loss = 0.5 * (loss_fn(p1_o, z2_t) + loss_fn(p2_o, z1_t))
+        loss = torch.mean(loss)
         
         ###############
         # logs
@@ -153,13 +131,12 @@ class MLRTrainer(BaseTrainer):
         target_frames = x_t[0, :, 0, :, :, :]
         
         log_data = {'loss': loss.item(),
-                    'sp_loss': sp_loss.item(),
-                    'idm_loss': idm_loss.item(),
+                    'obs_loss': loss.item(),
                     'pos_sim': pos_sim.item(),
                     'neg_sim': neg_sim.item(),
-                    'pos_neg_diff': pos_neg_diff.item(),
-                    'masked_frames': wandb.Image(masked_frames),
-                    'target_frames': wandb.Image(target_frames)}
+                    'pos_neg_diff': pos_neg_diff.item()}
+                    #'masked_frames': wandb.Image(masked_frames),
+                    #'target_frames': wandb.Image(target_frames)}
         
         return loss, log_data
         

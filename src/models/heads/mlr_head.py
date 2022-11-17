@@ -21,10 +21,12 @@ class MLRHead(BaseHead):
         self.t_step = t_step
         self.in_dim = in_dim
         self.proj_dim = proj_dim
+        
         self.mask_token = nn.Parameter(torch.zeros(1, 1, proj_dim))
-
         self.obs_in = nn.Linear(in_dim, proj_dim)
         self.act_in = nn.Embedding(action_size, proj_dim)
+        
+        self.dec_norm = nn.LayerNorm(proj_dim)
         self.decoder = TransDet(obs_shape=obs_shape, 
                                 action_size=action_size,
                                 hid_dim=proj_dim,
@@ -33,27 +35,23 @@ class MLRHead(BaseHead):
         self.projector = nn.Sequential(nn.Linear(proj_dim, proj_dim), 
                                        nn.BatchNorm1d(proj_dim), 
                                        nn.ReLU(), 
-                                       nn.Linear(proj_dim, proj_dim), 
-                                       nn.BatchNorm1d(proj_dim, affine=False))
+                                       nn.Linear(proj_dim, proj_dim))
         
         self.predictor = nn.Sequential(nn.Linear(proj_dim, proj_dim), 
                                        nn.BatchNorm1d(proj_dim), 
                                        nn.ReLU(), 
                                        nn.Linear(proj_dim, proj_dim))
-        
-        self.act_predictor = nn.Sequential(nn.Linear(2 * proj_dim, proj_dim), 
-                                           nn.ReLU(), 
-                                           nn.Linear(proj_dim, action_size))
 
     def decode(self, obs, act):
         n, t, d = obs.shape
-        obs_0 = obs[:, 0:1, :]
+        obs = self.obs_in(obs)
         act = self.act_in(act)
         
-        # mlr: prediction from a masked token
-        # rssm: prediction from a act token 
-        obs_act = self.decoder(obs, act, dataset_type='demonstration')
-        obs = obs_act[:, torch.arange(t) * 2, :]
+        # mlr: predict [obs] from a [obs] token
+        # clt: predict [obs] from a [act] token 
+        obs = self.dec_norm(obs)
+        x = self.decoder(obs, act, dataset_type='demonstration')
+        obs = x[:, torch.arange(t) * 2, :]
         
         return obs
 
@@ -65,6 +63,10 @@ class MLRHead(BaseHead):
     def project(self, x):
         n, t, d = x.shape
         x = rearrange(x, 'n t d-> (n t) d')
+        if d != self.proj_dim:
+            x = self.obs_in(x)
+            x = self.dec_norm(x)
+        
         x = self.projector(x)
         x = rearrange(x, '(n t) d-> n t d', t=t)
         return x
