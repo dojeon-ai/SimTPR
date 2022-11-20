@@ -1,0 +1,15 @@
+project_name: 'atari_pretrain'
+entity: 'draftrec'
+group_name: 'test'
+exp_name: 'clt_impala'
+device: cuda:0
+debug: True
+seed: 0
+
+defaults:
+- _self_
+- dataloader: lightweight_gpu
+- env: atari
+- trainer: clt
+- model: impala_clt
+- pretrain: scratch

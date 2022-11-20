@@ -1,0 +1,4 @@
+defaults:
+- backbone: impala
+- head: blt
+- policy: identity

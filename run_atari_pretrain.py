@@ -59,6 +59,9 @@ if __name__ == '__main__':
         experiments.append(exp)
         device_id += 1
         print(exp)
+        
+    import pdb
+    pdb.set_trace()
 
     # run parallell experiments
     # maxtasksperchild=1 -> no.of workers = no.of experiements

@@ -85,7 +85,8 @@ class ReplayDataset(Dataset):
             elif filetype == 'rtg':
                 new_filename = tmp_data_path + '/' + game
                 new_filename = os.path.join(new_filename, Path(os.path.basename(filename)[:-3]+".npy"))
-                try:
+                
+                try:                   
                     if dataset_on_disk:
                         data_ = np.load(new_filename, mmap_mode="r+")
                     if dataset_on_gpu:
@@ -117,6 +118,7 @@ class ReplayDataset(Dataset):
                     
                     # last trajectory
                     return_per_trajectory.append(G)
+                    total_return_per_trajectory += G
                     
                     print(f'num trajectories in data {len(return_per_trajectory)}')
                     print(f'average return of trajectories {np.mean(return_per_trajectory)}')        

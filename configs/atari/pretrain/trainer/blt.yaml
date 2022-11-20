@@ -1,10 +1,14 @@
 # defaults
-type: 'dt'
+type: 'blt'
 obs_shape: None
 action_size: None
 t_step: None
 
 aug_types: [random_shift, intensity]
+mask_type: 'none'
+mask_strategy: 'agnostic'
+mask_ratio: 0.5
+patch_size: [12, 12]
 
 optimizer:
     type: 'adamw'
@@ -19,6 +23,19 @@ scheduler:
     min_lr: 0.0003
     warmup_ratio: 0.2
     gamma: 1.0
+
+tau_scheduler:
+    initial_value: 0.99
+    final_value: 0.999
+    step_size: None
+    
+dataset_type: 'trajectory' # video, demonstration, trajectory
+obs_lmbda: 1.0
+act_lmbda: 1.0
+rew_lmbda: 1.0
+obs_loss_type: consistency # consistency, contrastive
+temperature: 0.1 # temperature is used when loss_type is contrastive
+                 # we use consistency loss by default
     
 # updates
 batch_size: None
@@ -32,7 +49,6 @@ eval_every: 1
 save_every: 5
 
 # zero-shot policy evaluation
-eval_policy: True
+eval_policy: False
 num_eval_trajectories: 50
 eval_eps: 0.001
-max_rtg_ratio: 1.0

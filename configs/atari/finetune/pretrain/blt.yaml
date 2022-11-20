@@ -1,0 +1,5 @@
+use_pretrained: True
+artifact_name: 'atari_pretrain/blt:latest'
+env: None
+seed: '0'
+name: '10/model.pth'

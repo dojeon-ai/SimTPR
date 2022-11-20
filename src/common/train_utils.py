@@ -56,6 +56,9 @@ def xavier_uniform_init(m):
         nn.init.constant_(m.weight, 1.0)    
         if m.bias is not None:
             nn.init.constant_(m.bias, 0)
+            
+    elif isinstance(m, nn.Parameter):
+        nn.init.normal_(m, std=.02)
     
     return m
 

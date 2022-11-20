@@ -5,9 +5,10 @@ import torch.nn.functional as F
 INF = 1e9
 
 class ContrastiveLoss(nn.Module):
-    def __init__(self, temperature):
+    def __init__(self, temperature, reduction='mean'):
         super().__init__()
         self.temperature = temperature
+        self.reduction = reduction
         
     def forward(self, z):
         """
@@ -34,15 +35,19 @@ class ContrastiveLoss(nn.Module):
         
         # compute loss
         mean_log_prob = torch.sum(log_probs, 1) / torch.sum(aug_idx,1)
-        loss = -torch.mean(mean_log_prob)
+        loss = -mean_log_prob
         
-        return loss   
+        if self.reduction == 'mean':
+            return torch.mean(loss)
+        else:
+            return loss
     
     
 class CURLLoss(nn.Module):
-    def __init__(self, temperature):
+    def __init__(self, temperature, reduction='mean'):
         super().__init__()
         self.temperature = temperature
+        self.reduction = reduction
         
     def forward(self, p, z):
         """
@@ -63,20 +68,29 @@ class CURLLoss(nn.Module):
         
         # compute loss
         mean_log_prob = torch.sum(log_probs, 1) / torch.sum(aug_idx,1)
-        loss = -torch.mean(mean_log_prob)
+        loss = -mean_log_prob
         
-        return loss   
+        if self.reduction == 'mean':
+            return torch.mean(loss)
+        else:
+            return loss
 
     
 class ConsistencyLoss(nn.Module):
-    def __init__(self):
+    def __init__(self, reduction='mean'):
         super().__init__()
+        self.reduction = reduction
         
     def forward(self, p, z):
         p = F.normalize(p, dim=-1, p=2)
         z = F.normalize(z, dim=-1, p=2)
         
-        return 2 - 2 * (p * z).sum(dim=-1)
+        loss = 2 - 2 * (p * z).sum(dim=-1)
+        
+        if self.reduction == 'mean':
+            return torch.mean(loss)
+        else:
+            return loss
     
 
 ############################################
