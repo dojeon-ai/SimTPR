@@ -2,7 +2,7 @@ cd ..
 cd ..
 python run_atari_pretrain.py \
     --group_name baseline \
-    --exp_name blt_mr03 \
+    --exp_name blt_vid_mr03 \
     --config_name mixed_blt_impala \
     --mode full \
     --debug False \

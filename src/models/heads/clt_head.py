@@ -68,7 +68,6 @@ class CLTHead(BaseHead):
             obs = self.obs_in(x['obs'])
             act = None
             rew = None
-            bc_mask = torch.zeros((1,1), device=obs.device)
             
         elif dataset_type == 'demonstration':
             # x = (o_1, a_1, o_2, a_2, ...)
@@ -76,8 +75,6 @@ class CLTHead(BaseHead):
             obs = self.obs_in(x['obs'])
             act = self.act_in(x['act'])
             rew = None
-            bc_mask = torch.zeros((2,2), device=obs.device)
-            bc_mask[0][1] = 1
             
         elif dataset_type == 'trajectory':
             # x = (o_1, a_1, r_1, o_2, a_2, r_2, ...)
@@ -85,9 +82,6 @@ class CLTHead(BaseHead):
             obs = self.obs_in(x['obs'])
             act = self.act_in(x['act'])
             rew = self.rew_in(x['rew'].unsqueeze(-1))
-            bc_mask = torch.zeros((3,3), device=obs.device)
-            bc_mask[0][1] = 1
-            bc_mask[0][2] = 1
             
         else:
             raise NotImplemented

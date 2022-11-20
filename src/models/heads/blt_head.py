@@ -56,37 +56,57 @@ class BLTHead(BaseHead):
                                            nn.Linear(proj_dim, 1),
                                            nn.Tanh()) 
 
-    def decode(self, x, mask):        
+    def decode(self, x, mask, dataset_type):        
         n, t, _ = x['obs'].shape
         
         # embedding
         # x = (o_1, a_1, r_1, o_2, a_2, r_2, ...)
-        T = 3 * t
-        obs = self.obs_in(x['obs'])
-        act = self.act_in(x['act'])
-        rew = self.rew_in(x['rew'].unsqueeze(-1))
+        T = t
         
-        # mask
-        obs_mask = mask['obs'].unsqueeze(-1)
-        act_mask = mask['act'].unsqueeze(-1)
-        rew_mask = mask['rew'].unsqueeze(-1)
-        obs = obs * (1-obs_mask) + self.mask_token * obs_mask
-        act = act * (1-act_mask) + self.mask_token * act_mask
-        rew = rew * (1-rew_mask) + self.mask_token * rew_mask
+        if dataset_type == 'video':
+            obs = self.obs_in(x['obs'])
+            obs_mask = mask['obs'].unsqueeze(-1)
+            obs = obs * (1-obs_mask) + self.mask_token * obs_mask
+            obs = self.dec_norm(obs)
+            
+            act = None
+            rew = None
+        else:
+            raise NotImplemented
+            """
+            obs = self.obs_in(x['obs'])
+            act = self.act_in(x['act'])
+            rew = self.rew_in(x['rew'].unsqueeze(-1))
+
+            # mask
+            obs_mask = mask['obs'].unsqueeze(-1)
+            act_mask = mask['act'].unsqueeze(-1)
+            rew_mask = mask['rew'].unsqueeze(-1)
+            obs = obs * (1-obs_mask) + self.mask_token * obs_mask
+            act = act * (1-act_mask) + self.mask_token * act_mask
+            rew = rew * (1-rew_mask) + self.mask_token * rew_mask
+
+            # forward
+            obs = self.dec_norm(obs)
+            act = self.dec_norm(act)
+            rew = self.dec_norm(rew)
+            """
         
-        # forward
-        obs = self.dec_norm(obs)
-        act = self.dec_norm(act)
-        rew = self.dec_norm(rew)
-        x = self.decoder(obs, act, rew, attn_mask=None, dataset_type='trajectory')
+        x = self.decoder(obs, act, rew, attn_mask=None, dataset_type=dataset_type)
 
         # prediction
-        obs = x[:, torch.arange(t)*3, :] # o_(t+1), ... o_(T+1)
-        act = x[:, torch.arange(t)*3+1, :]   # a_(t), ... a_(T)
-        rew = x[:, torch.arange(t)*3+2, :] # r_(t), ... r_(T)
+        if dataset_type == 'video':
+            obs = x
             
-        act = self.act_predictor(act)
-        rew = self.rew_predictor(rew)
+        else:
+            raise NotImplemented
+            """
+            obs = x[:, torch.arange(t)*3, :] # o_(t+1), ... o_(T+1)
+            act = x[:, torch.arange(t)*3+1, :]   # a_(t), ... a_(T)
+            rew = x[:, torch.arange(t)*3+2, :] # r_(t), ... r_(T)
+            act = self.act_predictor(act)
+            rew = self.rew_predictor(rew)
+            """
         
         x = {'obs': obs,
              'act': act,

@@ -72,9 +72,11 @@ class BLTTrainer(BaseTrainer):
             'act': act_mask,
             'rew': rew_mask
         }
+        
+        dataset_type = self.cfg.dataset_type
     
-        dec_output = self.model.head.decode(dec_input, dec_mask) 
-        obs_o, act_o, rew_o = dec_output['obs'], dec_output['act'], dec_output['rew']   
+        dec_output = self.model.head.decode(dec_input, dec_mask, dataset_type) 
+        obs_o, act_o, rew_o = dec_output['obs'], dec_output['act'], dec_output['rew']  
         z_o = self.model.head.project(obs_o)
         p_o = self.model.head.predict(z_o)
         z1_o, z2_o = z_o.chunk(2)
@@ -103,6 +105,7 @@ class BLTTrainer(BaseTrainer):
         obs_loss = obs_loss * obs_mask
         obs_loss = torch.sum(obs_loss) / torch.sum(obs_mask)
 
+        """
         # action loss
         act_loss_fn = nn.CrossEntropyLoss(reduction='none')
         act_o = rearrange(act_o, 'n t d -> (n t) d')
@@ -126,6 +129,11 @@ class BLTTrainer(BaseTrainer):
         rew_loss = rew_loss_fn(rew_o, rew)
         rew_loss = rew_loss * rew_mask
         rew_loss = torch.sum(rew_loss) / torch.sum(rew_mask)
+        """
+        
+        act_loss = torch.Tensor([0.0]).to(x.device)
+        act_acc = torch.Tensor([0.0]).to(x.device)
+        rew_loss = torch.Tensor([0.0]).to(x.device)
 
         loss = (self.cfg.obs_lmbda * obs_loss 
                 + self.cfg.act_lmbda * act_loss 

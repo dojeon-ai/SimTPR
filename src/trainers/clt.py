@@ -82,18 +82,9 @@ class CLTTrainer(BaseTrainer):
         
         # decode
         dataset_type = self.cfg.dataset_type 
-        if dataset_type == 'video':
-            dec_input = {'obs': y_o}
-            
-        elif dataset_type == 'demonstration':
-            dec_input = {'obs': y_o,
-                         'act': act}
-            
-        elif dataset_type == 'trajectory':
-            dec_input = {'obs': y_o,
-                         'act': act,
-                         'rew': rew}
-    
+        dec_input = {'obs': y_o,
+                     'act': act,
+                     'rew': rew}
 
         dec_output = self.model.head.decode(dec_input, dataset_type) 
         obs_o, act_o, rew_o = dec_output['obs'], dec_output['act'], dec_output['rew']   
