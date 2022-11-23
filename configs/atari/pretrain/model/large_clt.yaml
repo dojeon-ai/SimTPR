@@ -1,0 +1,4 @@
+defaults:
+- backbone: large
+- head: clt_512
+- policy: identity

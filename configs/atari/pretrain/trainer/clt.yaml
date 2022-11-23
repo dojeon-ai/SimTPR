@@ -34,7 +34,6 @@ obs_lmbda: 1.0
 act_lmbda: 1.0
 idm_lmbda: 0.0
 rew_lmbda: 1.0
-do_bc_mask: False
 
 obs_loss_type: consistency # consistency, contrastive
 temperature: None # temperature is used when loss_type is contrastive
@@ -55,3 +54,13 @@ save_every: 5
 eval_policy: False
 num_eval_trajectories: 50
 eval_eps: 0.001
+
+# mcts
+rollout: 
+    type: 'mcts'
+    history_len: 10
+    num_simulations: 400
+    max_depth: 40
+    tree_policy: 'puct'
+    c_p: 5
+    

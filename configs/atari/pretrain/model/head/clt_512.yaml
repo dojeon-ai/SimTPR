@@ -1,0 +1,7 @@
+type: clt
+obs_shape: None
+action_size: None
+t_step: None
+in_dim: None
+proj_dim: 512
+dec_num_layers: 2

@@ -7,6 +7,7 @@ import torch.nn.functional as F
 import copy
 import tqdm
 import numpy as np
+import random
 
 class DTTrainer(BaseTrainer):
     name = 'dt'
@@ -66,6 +67,7 @@ class DTTrainer(BaseTrainer):
     def evaluate_policy(self):
         self.model.eval()
         
+        # compute max rtg
         datasets = self.train_loader.dataset.datasets
         max_rtg = 0
         for dataset in datasets:
@@ -73,38 +75,38 @@ class DTTrainer(BaseTrainer):
         max_rtg = max_rtg * self.cfg.max_rtg_ratio
         
         for _ in tqdm.tqdm(range(self.cfg.num_eval_trajectories)):
-            PAD = 0
-            d = self.model.head.in_dim
+            # initialize history
             t = self.cfg.t_step
-            rtg_list = [PAD] * self.cfg.t_step
-            obs_list = [torch.zeros((1,1,d), device=self.device)] * self.cfg.t_step
-            act_list = [PAD] * self.cfg.t_step
+            PAD = 0
+            rtg = max_rtg
+            rtg_list, obs_list, act_list = [rtg], [], [PAD]
             
-            rtg_list.append(max_rtg)
+            # run trajectory
             obs = self.env.reset()
             while True:
                 # encode obs
-                # f,c,h,w -> 1, 1, f, c, h, w
                 obs = np.array(obs).astype(np.float32)
                 obs = obs / 255.0
-                obs = np.expand_dims(obs, 0)
-                obs = np.expand_dims(obs, 1)
                 obs = torch.FloatTensor(obs).to(self.device)
-                obs, _ = self.model.backbone(obs)
+                obs = rearrange(obs, 'f c h w -> 1 1 f c h w')
+                with torch.no_grad():
+                    obs, _ = self.model.backbone(obs)
                 obs_list.append(obs)
 
                 # decode w/ decision transformer
-                dec_input = {'rtg': torch.FloatTensor(rtg_list[-t:]),
-                             'obs': torch.cat(obs_list[-t:], 1),
-                             'act': torch.LongTensor(act_list[-t:])}
-                import pdb
-                pdb.set_trace()
+                rtg_hist = torch.FloatTensor(rtg_list[-t:]).unsqueeze(0)
+                obs_hist = torch.cat(obs_list[-t:], 1)
+                act_hist = torch.LongTensor(act_list[-t:]).unsqueeze(0)
                 
+                dec_input = {'rtg': rtg_hist.to(self.device),
+                             'obs': obs_hist.to(self.device),
+                             'act': act_hist.to(self.device)}                
                 
                 # eps-greedy
                 with torch.no_grad():
-                    logits, _ = self.model(obs)
-                argmax_action = torch.argmax(logits, -1)[0].item()
+                    logits = self.model.head.decode(dec_input)
+                    
+                argmax_action = torch.argmax(logits[:, -1, :], -1)[0].item()
                 eps = self.cfg.eval_eps
                 prob = random.random()
                 
@@ -115,7 +117,7 @@ class DTTrainer(BaseTrainer):
 
                 # step
                 next_obs, reward, done, info = self.env.step(action)
-
+                
                 # logger
                 self.agent_logger.step(obs, reward, done, info)
 
@@ -124,6 +126,10 @@ class DTTrainer(BaseTrainer):
                     break
                 else:
                     obs = next_obs
+                    rtg = rtg - reward
+                    
+                    rtg_list.append(rtg)
+                    act_list.append(action)
         
         log_data = self.agent_logger.fetch_log()
         

@@ -2,11 +2,14 @@ from .base import BaseTrainer
 from src.common.losses import ConsistencyLoss, CURLLoss
 from src.common.train_utils import LinearScheduler
 from src.common.vit_utils import get_random_3d_mask, get_3d_masked_input, restore_masked_input
+from src.common.mcts import MCTS
 from einops import rearrange
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
 import copy
+import tqdm
 import wandb
 
 class CLTTrainer(BaseTrainer):
@@ -175,7 +178,77 @@ class CLTTrainer(BaseTrainer):
         
         return loss, log_data
 
+    
     def update(self, obs, act, rew, done, rtg):
         tau = self.tau_scheduler.get_value()
         for online, target in zip(self.model.parameters(), self.target_model.parameters()):
             target.data = tau * target.data + (1 - tau) * online.data
+
+            
+    def evaluate_policy(self):
+        self.model.eval()
+        
+        for _ in tqdm.tqdm(range(self.cfg.num_eval_trajectories)):
+            # initialize history
+            obs_list, act_list, rew_list = [], [], []
+
+            # initialize tree
+            rollout_cfg = self.cfg.rollout
+            rollout_type = rollout_cfg.pop('type')
+            if rollout_type == 'mcts':        
+                tree = MCTS(self.model, **rollout_cfg)
+                    
+            elif self.cfg.rollout.type == 'beam':
+                pass
+            
+            
+            # run trajectory
+            obs = self.env.reset()
+            while True:
+                # encode obs
+                obs = np.array(obs).astype(np.float32)
+                obs = obs / 255.0
+                obs = torch.FloatTensor(obs).to(self.device)
+                obs = rearrange(obs, 'f c h w -> 1 1 f c h w')
+                with torch.no_grad():
+                    obs, _ = self.model.backbone(obs)
+                obs_list.append(obs)
+                
+                # select action with rollout
+                state = {
+                    'obs_list': obs_list,
+                    'act_list': act_list,
+                    'rew_list': rew_list
+                }
+                
+                argmax_action = tree.rollout(state)
+                
+                
+
+
+                # eps-greedy
+                eps = self.cfg.eval_eps
+                prob = random.random()
+                
+                if prob < eps:
+                    action = random.randint(0, self.cfg.action_size-1)
+                else:
+                    action = argmax_action  
+
+                # step
+                next_obs, reward, done, info = self.env.step(action)
+                
+                # logger
+                self.agent_logger.step(obs, reward, done, info)
+
+                # move on
+                if info.traj_done:
+                    break
+                else:
+                    obs = next_obs
+                    act_list.append(action)
+                    rew_list.append(reward)
+        
+        log_data = self.agent_logger.fetch_log()
+        
+        return log_data
