@@ -25,6 +25,7 @@ class CLTHead(BaseHead):
         self.obs_in = nn.Linear(in_dim, proj_dim)
         self.act_in = nn.Embedding(action_size, proj_dim)
         self.rew_in = nn.Linear(1, proj_dim) 
+        self.rtg_in = nn.Linear(1, proj_dim)
         
         self.dec_norm = nn.LayerNorm(proj_dim)
         self.decoder = TransDet(obs_shape=obs_shape, 
@@ -57,80 +58,87 @@ class CLTHead(BaseHead):
                                            nn.ReLU(), 
                                            nn.Linear(proj_dim, 1),
                                            nn.Tanh()) 
-
+        self.rtg_predictor = nn.Sequential(nn.Linear(proj_dim, proj_dim), 
+                                           nn.ReLU(), 
+                                           nn.Linear(proj_dim, 1))
     def decode(self, x, dataset_type):        
-        n, t, _ = x['obs'].shape
+        n, t, d = x['obs'].shape
+        
+        if d != self.proj_dim:
+            obs = self.obs_in(x['obs'])
+            obs = self.dec_norm(obs)
+        else:
+            obs = x['obs']
         
         # embedding
+        act, rew, rtg = None, None, None
         if dataset_type == 'video':
             # x = (o_1, o_2, ...)
             T = t
-            obs = self.obs_in(x['obs'])
-            act = None
-            rew = None
             
         elif dataset_type == 'demonstration':
             # x = (o_1, a_1, o_2, a_2, ...)
             T = 2 * t
-            obs = self.obs_in(x['obs'])
             act = self.act_in(x['act'])
-            rew = None
             
         elif dataset_type == 'trajectory':
-            # x = (o_1, a_1, r_1, o_2, a_2, r_2, ...)
-            T = 3 * t
-            obs = self.obs_in(x['obs'])
+            # x = (o_1, a_1, r_1, R_1, o_2, a_2, r_2, R_2, ...)
+            T = 4 * t
             act = self.act_in(x['act'])
             rew = self.rew_in(x['rew'].unsqueeze(-1))
+            rtg = self.rtg_in(x['rtg'].unsqueeze(-1))
             
         else:
             raise NotImplemented
         
         # decoding
-        obs = self.dec_norm(obs)
         attn_mask = 1 - torch.ones((n, T, T), device=(obs.device)).tril_()
-        x = self.decoder(obs, act, rew, attn_mask, dataset_type)
+        x = self.decoder(obs, act, rew, rtg, attn_mask, dataset_type)
 
         # prediction
+        obs, act, rew, rtg = None, None, None, None
         if dataset_type == 'video':
             # o_t -> o_t+1
             obs = x
-            act = None
-            rew = None
             
         elif dataset_type == 'demonstration':
             # o_t -> a_t, a_t -> o_(t+1)
             obs = x[:, torch.arange(t)*2+1, :] # o_(t+1), ... o_(T+1)
             act = x[:, torch.arange(t)*2, :]   # a_(t), ... a_(T)
-            rew = None
             
             act = self.act_predictor(act)
             
         elif dataset_type == 'trajectory':
             # o_t -> a_t, a_t -> r_t, r_t -> o_(t+1)
-            obs = x[:, torch.arange(t)*3+2, :] # o_(t+1), ... o_(T+1)
-            act = x[:, torch.arange(t)*3, :]   # a_(t), ... a_(T)
-            rew = x[:, torch.arange(t)*3+1, :] # r_(t), ... r_(T)
+            obs = x[:, torch.arange(t)*4+3, :] # o_(t+1), ... o_(T+1)
+            act = x[:, torch.arange(t)*4, :]   # a_(t), ... a_(T)
+            rew = x[:, torch.arange(t)*4+1, :] # r_(t), ... r_(T)
+            rtg = x[:, torch.arange(t)*4+2, :] # R_(t), ... R_(T)
             
             act = self.act_predictor(act)
             rew = self.rew_predictor(rew)
+            rtg = self.rtg_predictor(rtg)
             
         else:
             raise NotImplemented
         
         x = {'obs': obs,
              'act': act,
-             'rew': rew}
+             'rew': rew, 
+             'rtg': rtg}
+        
+        return x
+    
+    def obs_to_latent(self, x):
+        n, t, d = x.shape
+        x = self.obs_in(x)
+        x = self.dec_norm(x)
         
         return x
 
     def project(self, x):
         n, t, d = x.shape
         x = rearrange(x, 'n t d-> (n t) d')
-        if d != self.proj_dim:
-            x = self.obs_in(x)
-            x = self.dec_norm(x)
-            
         x = self.projector(x)
         x = rearrange(x, '(n t) d-> n t d', t=t)
         return x

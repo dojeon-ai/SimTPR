@@ -76,9 +76,6 @@ def run(args):
         model_path = artifact.get_path(model_path).download()
         state_dict = torch.load(model_path, map_location=device)
         model.load_state_dict(state_dict['model_state_dict'], strict=False)
-
-    import pdb
-    pdb.set_trace()
         
     # trainer
     trainer = build_trainer(cfg=cfg.trainer,

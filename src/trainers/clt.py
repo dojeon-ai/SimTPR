@@ -10,6 +10,7 @@ import torch.nn.functional as F
 import numpy as np
 import copy
 import tqdm
+import random
 import wandb
 
 class CLTTrainer(BaseTrainer):
@@ -47,6 +48,7 @@ class CLTTrainer(BaseTrainer):
         x = rearrange(x, 'n (t f c) h w -> n t f c h w', t=t, f=f)
         act = torch.cat([act, act], axis=0)
         rew = torch.cat([rew, rew], axis=0)
+        rtg = torch.cat([rtg, rtg], axis=0)
 
         # strong augmentation to online: (masking)
         assert self.cfg.mask_type in {'none', 'pixel'}
@@ -77,21 +79,27 @@ class CLTTrainer(BaseTrainer):
         x_t = x[:, 1:]
         act = act[:, :-1]
         rew = rew[:, :-1]
-
+        rtg = rtg[:, :-1]
+        
         #################
         # forward
         # online encoder
         y_o, _ = self.model.backbone(x_o)  
-        
+        y_o = self.model.head.obs_to_latent(y_o)
+
         # decode
         dataset_type = self.cfg.dataset_type 
         dec_input = {'obs': y_o,
                      'act': act,
-                     'rew': rew}
+                     'rew': rew,
+                     'rtg': rtg}
 
         dec_output = self.model.head.decode(dec_input, dataset_type) 
-        obs_o, act_o, rew_o = dec_output['obs'], dec_output['act'], dec_output['rew']   
-        z_o = self.model.head.project(obs_o)
+        obs_o, act_o, rew_o, rtg_o = dec_output['obs'], dec_output['act'], dec_output['rew'], dec_output['rtg']   
+        if self.cfg.projection:
+            z_o = self.model.head.project(obs_o)
+        else:
+            z_o = obs_o
         p_o = self.model.head.predict(z_o)
         z1_o, z2_o = z_o.chunk(2)
         p1_o, p2_o = p_o.chunk(2)
@@ -99,7 +107,11 @@ class CLTTrainer(BaseTrainer):
         # target encoder
         with torch.no_grad():
             y_t, _ = self.target_model.backbone(x_t)
-            z_t = self.target_model.head.project(y_t)
+            y_t = self.model.head.obs_to_latent(y_t)
+            if self.cfg.projection:
+                z_t = self.target_model.head.project(y_t)
+            else:
+                z_t = y_t
             z1_t, z2_t = z_t.chunk(2)
 
         #################
@@ -145,9 +157,19 @@ class CLTTrainer(BaseTrainer):
             rew_loss = rew_loss_fn(rew_o, rew)
         else:
             rew_loss = torch.Tensor([0.0]).to(x.device)
+            
+        # rtg loss
+        if rtg_o is not None:
+            rtg_loss_fn = nn.MSELoss()
+            rtg_o = rearrange(rtg_o, 'n t 1 -> (n t 1)')
+            rtg = rearrange(rtg, 'n t -> (n t)')
+            rtg_loss = rtg_loss_fn(rtg_o, rtg)
+        else:
+            rtg_loss = torch.Tensor([0.0]).to(x.device)
 
         loss = (self.cfg.obs_lmbda * obs_loss + self.cfg.act_lmbda * act_loss + 
-                self.cfg.idm_lmbda * idm_loss + self.cfg.rew_lmbda * rew_loss)
+                self.cfg.idm_lmbda * idm_loss + self.cfg.rew_lmbda * rew_loss +
+                self.cfg.rtg_lmbda * rtg_loss)
         
         ###############
         # logs
@@ -168,6 +190,7 @@ class CLTTrainer(BaseTrainer):
                     'act_loss': act_loss.item(),
                     'idm_loss': idm_loss.item(),
                     'rew_loss': rew_loss.item(),
+                    'rtg_loss': rtg_loss.item(),
                     'act_acc': act_acc.item(),
                     'idm_acc': idm_acc.item(),
                     'pos_sim': pos_sim.item(),
@@ -196,13 +219,17 @@ class CLTTrainer(BaseTrainer):
             rollout_cfg = self.cfg.rollout
             rollout_type = rollout_cfg.pop('type')
             if rollout_type == 'mcts':        
-                tree = MCTS(self.model, **rollout_cfg)
+                tree = MCTS(model=self.model, 
+                            device=self.device,
+                            action_size=self.cfg.action_size,
+                            **rollout_cfg)
                     
             elif self.cfg.rollout.type == 'beam':
                 pass
             
             
             # run trajectory
+            G = 0
             obs = self.env.reset()
             while True:
                 # encode obs
@@ -212,6 +239,10 @@ class CLTTrainer(BaseTrainer):
                 obs = rearrange(obs, 'f c h w -> 1 1 f c h w')
                 with torch.no_grad():
                     obs, _ = self.model.backbone(obs)
+                    obs = self.model.head.obs_in(obs)
+                    obs = self.model.head.dec_norm(obs)
+                    obs = obs.cpu()
+                    
                 obs_list.append(obs)
                 
                 # select action with rollout
@@ -220,12 +251,9 @@ class CLTTrainer(BaseTrainer):
                     'act_list': act_list,
                     'rew_list': rew_list
                 }
-                
+
                 argmax_action = tree.rollout(state)
                 
-                
-
-
                 # eps-greedy
                 eps = self.cfg.eval_eps
                 prob = random.random()
@@ -241,6 +269,9 @@ class CLTTrainer(BaseTrainer):
                 # logger
                 self.agent_logger.step(obs, reward, done, info)
 
+                G += reward
+                print(G)
+                
                 # move on
                 if info.traj_done:
                     break

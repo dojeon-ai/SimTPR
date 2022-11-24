@@ -34,10 +34,12 @@ obs_lmbda: 1.0
 act_lmbda: 1.0
 idm_lmbda: 0.0
 rew_lmbda: 1.0
+rtg_lmbda: 0.1
 
 obs_loss_type: consistency # consistency, contrastive
 temperature: None # temperature is used when loss_type is contrastive
                   # we use consistency loss by default
+projection: False
     
 # updates
 batch_size: None
@@ -59,8 +61,8 @@ eval_eps: 0.001
 rollout: 
     type: 'mcts'
     history_len: 10
-    num_simulations: 400
-    max_depth: 40
+    num_simulations: 1
+    max_depth: 1
     tree_policy: 'puct'
     c_p: 5
     

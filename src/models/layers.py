@@ -167,14 +167,15 @@ class TransDet(nn.Module):
         self.pos_embed.copy_(torch.from_numpy(pos_embed).float().unsqueeze(0))
         self.apply(xavier_uniform_init)
 
-    def forward(self, obs, act=None, rew=None, attn_mask=None, dataset_type='demonstration'):
+    def forward(self, obs, act=None, rew=None, rtg=None, 
+                      attn_mask=None, dataset_type='demonstration'):
         """
         [params] obs: (n, t, d)
         [params] act: (n, t)
         [params] rew: (n, t)
         [returns] x: (n, T, d) 
            if act is not None: T=2*t
-           if rew is not None: T=3*t
+           if rew and rtg is not None: T=4*t
         """
         n, t, d = obs.shape
 
@@ -197,14 +198,20 @@ class TransDet(nn.Module):
                 
             if rew is None:
                 raise ValueError('requires reward for trajectory data')
+                
+            if rtg is None:
+                raise ValueError('requires return-to-go for trajectory data')
             
             obs = obs + self.pos_embed[:, :t, :]
             act = act + self.pos_embed[:, :t, :]
             rew = rew + self.pos_embed[:, :t, :]
-            x = torch.zeros((n, 3 * t, d), device=(obs.device))
-            x[:, torch.arange(t) * 3, :] += obs
-            x[:, torch.arange(t) * 3 + 1, :] += act
-            x[:, torch.arange(t) * 3 + 2, :] += rew
+            rtg = rtg + self.pos_embed[:, :t, :]
+            
+            x = torch.zeros((n, 4 * t, d), device=(obs.device))
+            x[:, torch.arange(t) * 4, :] += obs
+            x[:, torch.arange(t) * 4 + 1, :] += act
+            x[:, torch.arange(t) * 4 + 2, :] += rew
+            x[:, torch.arange(t) * 4 + 3, :] += rtg
         
         x, _ = self.decoder(x, attn_mask=attn_mask)
         x = self.norm_out(x)

@@ -11,4 +11,5 @@ python run_atari_pretrain.py \
     --num_exp_per_device 1 \
     --overrides trainer.dataset_type='video' \
     --overrides trainer.obs_loss_type='contrastive' \
-    --overrides trainer.temperature=0.1
+    --overrides trainer.temperature=0.1 \
+    --overrides trainer.projection=True

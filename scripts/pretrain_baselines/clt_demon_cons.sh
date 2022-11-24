@@ -11,3 +11,4 @@ python run_atari_pretrain.py \
     --num_exp_per_device 1 \
     --overrides trainer.dataset_type='demonstration' \
     --overrides trainer.obs_loss_type='consistency' \
+    --overrides trainer.projection=True
