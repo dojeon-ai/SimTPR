@@ -2,7 +2,7 @@ from .base import BaseTrainer
 from src.common.losses import ConsistencyLoss, CURLLoss
 from src.common.train_utils import LinearScheduler
 from src.common.vit_utils import get_random_3d_mask, get_3d_masked_input, restore_masked_input
-from src.common.mcts import MCTS
+from src.common.beam import Beam
 from einops import rearrange
 import torch
 import torch.nn as nn
@@ -35,6 +35,13 @@ class CLTTrainer(BaseTrainer):
         cfg.tau_scheduler.step_size = update_steps
         self.tau_scheduler = LinearScheduler(**cfg.tau_scheduler)
         
+        max_rtg = 0
+        datasets = self.train_loader.dataset.datasets
+        for dataset in datasets:
+            max_rtg = max(max_rtg, torch.max(dataset.rtg).item())
+        self.max_rtg = max_rtg
+        
+        
     def compute_loss(self, obs, act, rew, done, rtg):
         ####################
         # augmentation
@@ -48,7 +55,7 @@ class CLTTrainer(BaseTrainer):
         x = rearrange(x, 'n (t f c) h w -> n t f c h w', t=t, f=f)
         act = torch.cat([act, act], axis=0)
         rew = torch.cat([rew, rew], axis=0)
-        rtg = torch.cat([rtg, rtg], axis=0)
+        rtg = torch.cat([rtg, rtg], axis=0) / self.max_rtg
 
         # strong augmentation to online: (masking)
         assert self.cfg.mask_type in {'none', 'pixel'}
@@ -213,24 +220,25 @@ class CLTTrainer(BaseTrainer):
         
         for _ in tqdm.tqdm(range(self.cfg.num_eval_trajectories)):
             # initialize history
-            obs_list, act_list, rew_list = [], [], []
+            obs_list, act_list, rew_list, rtg_list = [], [], [], []
 
             # initialize tree
             rollout_cfg = self.cfg.rollout
             rollout_type = rollout_cfg.pop('type')
+            
             if rollout_type == 'mcts':        
-                tree = MCTS(model=self.model, 
+                raise NotImplemented
+                    
+            elif rollout_type == 'beam':
+                tree = Beam(model=self.model, 
                             device=self.device,
                             action_size=self.cfg.action_size,
                             **rollout_cfg)
-                    
-            elif self.cfg.rollout.type == 'beam':
-                pass
-            
             
             # run trajectory
-            G = 0
             obs = self.env.reset()
+            act_sequence = []
+            rtg = None
             while True:
                 # encode obs
                 obs = np.array(obs).astype(np.float32)
@@ -239,8 +247,7 @@ class CLTTrainer(BaseTrainer):
                 obs = rearrange(obs, 'f c h w -> 1 1 f c h w')
                 with torch.no_grad():
                     obs, _ = self.model.backbone(obs)
-                    obs = self.model.head.obs_in(obs)
-                    obs = self.model.head.dec_norm(obs)
+                    obs = self.model.head.obs_to_latent(obs)
                     obs = obs.cpu()
                     
                 obs_list.append(obs)
@@ -249,28 +256,39 @@ class CLTTrainer(BaseTrainer):
                 state = {
                     'obs_list': obs_list,
                     'act_list': act_list,
-                    'rew_list': rew_list
+                    'rew_list': rew_list,
+                    'rtg_list': rtg_list
                 }
 
-                argmax_action = tree.rollout(state)
+                # rollout at the end of the horizon
+                #if len(act_sequence) == 0:
+                #    beam = tree.rollout(state)
+                #    act_sequence = beam['act_batch'].numpy().tolist()
+                    
+                #    if rtg is None:
+                #        rtg = beam['rtg_batch'].numpy()[0]
+                
+                beam = tree.rollout(state)
+                act_sequence = beam['act_batch'].numpy().tolist()
+                
+                if rtg is None:
+                    rtg = beam['rtg_batch'].numpy()[0]
                 
                 # eps-greedy
                 eps = self.cfg.eval_eps
                 prob = random.random()
+                argmax_action = act_sequence.pop(0)
                 
                 if prob < eps:
                     action = random.randint(0, self.cfg.action_size-1)
                 else:
-                    action = argmax_action  
+                    action = argmax_action
 
                 # step
                 next_obs, reward, done, info = self.env.step(action)
                 
                 # logger
                 self.agent_logger.step(obs, reward, done, info)
-
-                G += reward
-                print(G)
                 
                 # move on
                 if info.traj_done:
@@ -279,7 +297,11 @@ class CLTTrainer(BaseTrainer):
                     obs = next_obs
                     act_list.append(action)
                     rew_list.append(reward)
-        
+                    rtg_list.append(rtg)
+                    rtg = rtg - reward
+                
+                print(np.sum(self.agent_logger.traj_game_scores))
+
         log_data = self.agent_logger.fetch_log()
         
         return log_data

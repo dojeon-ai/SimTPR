@@ -1,5 +1,5 @@
 use_pretrained: True
-artifact_name: 'atari_pretrain/trajformer_traj_cons:latest'
+artifact_name: 'atari_pretrain/clt_traj_cons_no_proj:latest'
 env: None
 seed: '0'
 name: '10/model.pth'
