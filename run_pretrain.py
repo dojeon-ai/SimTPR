@@ -3,8 +3,9 @@ import hydra
 from hydra import compose, initialize
 from src.dataloaders import *
 from src.envs import *
+from src.envs.vec_env import VecEnv
 from src.models import *
-from src.common.logger import WandbTrainerLogger, AgentLogger
+from src.common.logger import WandbTrainerLogger, AgentLogger, VecAgentLogger
 from src.common.train_utils import set_global_seeds
 from src.trainers import build_trainer
 from typing import List
@@ -23,6 +24,7 @@ def run(args):
 
     # Hydra Compose
     config_path = './configs/' + config_dir 
+    hydra.core.global_hydra.GlobalHydra.instance().clear()
     initialize(version_base=None, config_path=config_path) 
     cfg = compose(config_name=config_name, overrides=overrides)
     
@@ -78,6 +80,16 @@ def run(args):
         model.load_state_dict(state_dict['model_state_dict'], strict=False)
         
     # trainer
+    num_envs = cfg.trainer.num_envs
+    if num_envs > 1:
+        envs = []
+        for idx in range(num_envs):
+            cfg.env.seed = idx
+            env, _ = build_env(cfg.env)
+            envs.append(env)
+        env = VecEnv(num_processes = num_envs, envs = envs)
+        agent_logger = VecAgentLogger(average_len=100, num_envs= num_envs)
+    
     trainer = build_trainer(cfg=cfg.trainer,
                             train_loader=train_loader,
                             eval_act_loader=eval_act_loader,

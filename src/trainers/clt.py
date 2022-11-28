@@ -4,6 +4,7 @@ from src.common.train_utils import LinearScheduler
 from src.common.vit_utils import get_random_3d_mask, get_3d_masked_input, restore_masked_input
 from src.common.beam import Beam
 from einops import rearrange
+from collections import deque
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -218,6 +219,87 @@ class CLTTrainer(BaseTrainer):
     def evaluate_policy(self):
         self.model.eval()
         
+        # initialize history
+        C = self.cfg.rollout.context_len
+        obs_list = deque(maxlen=C)
+        act_list = deque(maxlen=C) 
+        rew_list = deque(maxlen=C)
+        rtg_list = deque(maxlen=C)
+
+        # initialize tree
+        rollout_cfg = self.cfg.rollout
+        rollout_type = rollout_cfg.pop('type')
+
+        if rollout_type == 'mcts':        
+            raise NotImplemented
+
+        elif rollout_type == 'beam':
+            tree = Beam(model=self.model, 
+                        device=self.device,
+                        num_envs=self.cfg.num_envs,
+                        action_size=self.cfg.action_size,
+                        rtg_scale=self.max_rtg,
+                        **rollout_cfg)
+
+        # run trajectory
+        obs = self.env.reset()
+        rtg = np.array([self.max_rtg] * self.cfg.num_envs)
+        while True:
+            # encode obs
+            obs = np.array(obs).astype(np.float32)
+            obs = obs / 255.0
+            obs = torch.FloatTensor(obs).to(self.device)
+            obs = rearrange(obs, 'n f c h w -> n 1 f c h w')
+            with torch.no_grad():
+                obs, _ = self.model.backbone(obs)
+                obs = self.model.head.obs_to_latent(obs)
+                obs = obs.cpu()
+
+            obs_list.append(obs)
+
+            # select action with rollout
+            state = {
+                'obs_list': obs_list,
+                'act_list': act_list,
+                'rew_list': rew_list,
+                'rtg_list': rtg_list
+            }
+
+            beam = tree.rollout(state)            
+            tree_action = beam['act_batch'].numpy()[:, 0]
+            rand_action = np.random.randint(0, self.cfg.action_size-1, self.cfg.num_envs)
+
+            # eps-greedy
+            eps = self.cfg.eval_eps
+            prob = np.random.rand(self.cfg.num_envs)
+            rand_idx = (prob <= eps)
+            action = rand_idx * rand_action + (1-rand_idx) * tree_action
+
+            # step
+            next_obs, reward, done, info = self.env.step(action)
+
+            # logger
+            self.agent_logger.step(obs, reward, done, info)
+
+            # move on
+            if np.sum(self.agent_logger.traj_done) == self.cfg.num_envs:
+                break
+            else:
+                obs = next_obs
+                act_list.append(action)
+                rew_list.append(reward)
+                rtg_list.append(rtg / self.max_rtg)
+                rtg = rtg - reward
+    
+        log_data = self.agent_logger.fetch_log()
+        
+        return log_data
+
+            
+    """
+    def evaluate_policy(self):
+        self.model.eval()
+        
         for _ in tqdm.tqdm(range(self.cfg.num_eval_trajectories)):
             # initialize history
             obs_list, act_list, rew_list, rtg_list = [], [], [], []
@@ -233,12 +315,13 @@ class CLTTrainer(BaseTrainer):
                 tree = Beam(model=self.model, 
                             device=self.device,
                             action_size=self.cfg.action_size,
+                            rtg_scale=self.max_rtg,
                             **rollout_cfg)
             
             # run trajectory
             obs = self.env.reset()
             act_sequence = []
-            rtg = None
+            rtg = self.max_rtg
             while True:
                 # encode obs
                 obs = np.array(obs).astype(np.float32)
@@ -260,19 +343,8 @@ class CLTTrainer(BaseTrainer):
                     'rtg_list': rtg_list
                 }
 
-                # rollout at the end of the horizon
-                #if len(act_sequence) == 0:
-                #    beam = tree.rollout(state)
-                #    act_sequence = beam['act_batch'].numpy().tolist()
-                    
-                #    if rtg is None:
-                #        rtg = beam['rtg_batch'].numpy()[0]
-                
                 beam = tree.rollout(state)
                 act_sequence = beam['act_batch'].numpy().tolist()
-                
-                if rtg is None:
-                    rtg = beam['rtg_batch'].numpy()[0]
                 
                 # eps-greedy
                 eps = self.cfg.eval_eps
@@ -297,11 +369,13 @@ class CLTTrainer(BaseTrainer):
                     obs = next_obs
                     act_list.append(action)
                     rew_list.append(reward)
-                    rtg_list.append(rtg)
+                    rtg_list.append(rtg / self.max_rtg)
                     rtg = rtg - reward
                 
+                #print(rtg)
                 print(np.sum(self.agent_logger.traj_game_scores))
 
         log_data = self.agent_logger.fetch_log()
         
         return log_data
+        """

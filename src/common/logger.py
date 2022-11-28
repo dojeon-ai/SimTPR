@@ -66,6 +66,7 @@ class TrainerLogger(object):
         return log_data
 
 
+
 class WandbAgentLogger(object):
     def __init__(self, cfg):
         self.cfg = cfg
@@ -111,7 +112,54 @@ class WandbAgentLogger(object):
     def get_artifacts(self):
         return self.artifacts
 
+    
+class VecAgentLogger(object):
+    def __init__(self, average_len=10, num_envs=1):
+        # https://arxiv.org/pdf/1709.06009.pdf 
+        # Section 3.1 -> Training: end-of-life / Evaluation: end-of-trajectory
+        # episode = life / traj = all lives
+        self.num_envs = num_envs
+        
+        self.traj_done = [False] * self.num_envs
+        self.traj_rewards = []
+        self.traj_game_scores = []
+        for _ in range(num_envs):
+            self.traj_rewards.append([])
+            self.traj_game_scores.append([])
+        self.traj_rewards_buffer = deque(maxlen=average_len)
+        self.traj_game_scores_buffer = deque(maxlen=average_len)
+        self.average_meter_set = AverageMeterSet()
+        
+    def step(self, states, rewards, dones, infos):
+        for idx in range(self.num_envs):
+            reward = rewards[idx]
+            done = dones[idx]
+            info = infos[idx]
+            self.traj_rewards[idx].append(reward)
+            self.traj_game_scores[idx].append(info.game_score)
 
+            if info.traj_done:
+                if self.traj_done[idx] == False:
+                    self.traj_rewards_buffer.append(np.sum(self.traj_rewards[idx]))
+                    self.traj_game_scores_buffer.append(np.sum(self.traj_game_scores[idx]))
+                    self.traj_rewards[idx] = []
+                    self.traj_game_scores[idx] = []
+                    self.traj_done[idx] = True
+    
+    def update_log(self, **kwargs):
+        for k, v in kwargs.items():
+            self.average_meter_set.update(k, v)
+
+    def fetch_log(self):
+        log_data = {}
+        log_data['mean_traj_rewards'] = np.mean(self.traj_rewards_buffer)
+        log_data['mean_traj_game_scores'] = np.mean(self.traj_game_scores_buffer)
+        log_data.update(self.average_meter_set.averages())
+        self.average_meter_set = AverageMeterSet()
+            
+        return log_data
+    
+    
 class AgentLogger(object):
     def __init__(self, average_len=10):
         # https://arxiv.org/pdf/1709.06009.pdf 

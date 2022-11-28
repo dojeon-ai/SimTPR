@@ -53,14 +53,14 @@ eval_every: 1
 save_every: 5
 
 # zero-shot policy evaluation
-eval_policy: False
+eval_policy: True
 num_eval_trajectories: 50
+num_envs: 50
 eval_eps: 0.001
 
-# mcts
 rollout: 
     type: 'beam'
-    beam_width: 64
-    horizon: 10
+    beam_width: 4
+    horizon: 5
     context_len: 10
     gamma: 0.99
