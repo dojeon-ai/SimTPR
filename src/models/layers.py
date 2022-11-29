@@ -77,6 +77,7 @@ class Transformer(nn.Module):
                 PreNorm(dim, Attention(dim, heads = heads, dropout = dropout)),
                 PreNorm(dim, FeedForward(dim, mlp_dim, dropout = dropout))
             ]))
+        self.apply(xavier_uniform_init)
 
     def forward(self, x, attn_mask=None):
         attn_maps = []

@@ -1,0 +1,4 @@
+defaults:
+- backbone: impala
+- head: hicat
+- policy: identity
