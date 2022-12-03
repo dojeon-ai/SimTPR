@@ -74,17 +74,21 @@ class Beam():
         _state['rtg_list'].append([PAD] * self.num_envs)
         
         # stack and extract context
-        obs_list = list(_state['obs_list'])
+        obs_list = np.stack(_state['obs_list'], 1)
         act_list = np.stack(_state['act_list'], 1)
         rew_list = np.stack(_state['rew_list'], 1)
         rtg_list = np.stack(_state['rtg_list'], 1)
-
-        obs_batch = torch.cat(obs_list, 1)
+        
+        obs_batch = torch.FloatTensor(obs_list)
         act_batch = torch.LongTensor(act_list)
         rew_batch = torch.FloatTensor(rew_list)
         rtg_batch = torch.FloatTensor(rtg_list)
         
         obs_batch = obs_batch[:, -C:]
+        obs_batch, _ = self.model.backbone(obs_batch.to(self.device))
+        obs_batch = self.model.head.encode_obs()
+        obs_batch = obs_batch.detach().cpu()
+        
         act_batch = act_batch[:, -C:]
         rew_batch = rew_batch[:, -C:]
         rtg_batch = rtg_batch[:, -C:]
@@ -130,14 +134,13 @@ class Beam():
         
         ###############################################
         # (1) get action probability
-        dec_input = {
-            'obs': obs_batch[:, -C:].to(device),
-            'act': act_batch[:, -C:].to(device),
-            'rew': rew_batch[:, -C:].to(device),
-            'rtg': rtg_batch[:, -C:].to(device)
-        }
-        dec_output = self.model.head.decode(dec_input, dataset_type='trajectory')
-        probs = F.softmax(dec_output['act'], -1)[:, -1, :]
+        obs, act, rew, rtg = self.model.head.decode(
+            obs = obs_batch[:, -C:].to(device),
+            act = act_batch[:, -C:].to(device),
+            rew = rew_batch[:, -C:].to(device),
+            rtg = rtg_batch[:, -C:].to(device)
+        )
+        probs = F.softmax(act, -1)[:, -1, :]
         
         ###############################################
         # (2) generate candidates
@@ -222,44 +225,36 @@ class Beam():
         
         ##########################################
         # (1) generate reward for beams
-        dec_input = {
-            'obs': obs_batch[:, -C:].to(device),
-            'act': act_batch[:, -C:].to(device),
-            'rew': rew_batch[:, -C:].to(device),
-            'rtg': rtg_batch[:, -C:].to(device)
-        }
-        dec_output = self.model.head.decode(dec_input, dataset_type='trajectory')
-        rews = dec_output['rew']
+        obs, act, rew, rtg = self.model.head.decode(
+            obs = obs_batch[:, -C:].to(device),
+            act = act_batch[:, -C:].to(device),
+            rew = rew_batch[:, -C:].to(device),
+            rtg = rtg_batch[:, -C:].to(device)
+        )
         
         # <fill> last reward with predicted reward
-        rew = rews[: ,-1, :].squeeze(-1)
-        rew_batch[:, -1] = rew
+        rew_batch[:, -1] = rew[: ,-1, :].squeeze(-1)
         
         ###########################################
         # (2) generate rtg with predicted rewards
-        dec_input = {
-            'obs': obs_batch[:, -C:].to(device),
-            'act': act_batch[:, -C:].to(device),
-            'rew': rew_batch[:, -C:].to(device),
-            'rtg': rtg_batch[:, -C:].to(device)
-        }
-        dec_output = self.model.head.decode(dec_input, dataset_type='trajectory')
-        rtgs = dec_output['rtg']
+        obs, act, rew, rtg = self.model.head.decode(
+            obs = obs_batch[:, -C:].to(device),
+            act = act_batch[:, -C:].to(device),
+            rew = rew_batch[:, -C:].to(device),
+            rtg = rtg_batch[:, -C:].to(device)
+        )
         
         # <fill> last rtg with predicted rtg
-        rtg = rtgs[: ,-1, :].squeeze(-1)
-        rtg_batch[:, -1] = rtg
+        rtg_batch[:, -1] = rtg[: ,-1, :].squeeze(-1)
         
         #############################################
         # (3) generate next_obs with predicted retgs
-        dec_input = {
-            'obs': obs_batch[:, -C:].to(device),
-            'act': act_batch[:, -C:].to(device),
-            'rew': rew_batch[:, -C:].to(device),
-            'rtg': rtg_batch[:, -C:].to(device)
-        }
-        dec_output = self.model.head.decode(dec_input, dataset_type='trajectory')
-        obses = dec_output['obs']
+        obs, act, rew, rtg = self.model.head.decode(
+            obs = obs_batch[:, -C:].to(device),
+            act = act_batch[:, -C:].to(device),
+            rew = rew_batch[:, -C:].to(device),
+            rtg = rtg_batch[:, -C:].to(device)
+        )
         
         ##############################################
         # (4) generate next sequence and fill next_obs        
@@ -271,9 +266,11 @@ class Beam():
         rew_batch = torch.cat((rew_batch, PAD), 1)
         rtg_batch = torch.cat((rtg_batch, PAD), 1)
         
-        # <append> last obs with predicted obs
-        obs = obses[:, -1:, :]
-        obs = self.model.head.predict(obs)        
+        # <append> last obs with predicted obs    
+        
+        import pdb
+        pdb.set_trace()
+        
         obs_batch[:, -1] = rearrange(obs, 'n 1 d -> n d')
 
         # reshape to original

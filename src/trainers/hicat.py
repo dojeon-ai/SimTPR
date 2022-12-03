@@ -106,7 +106,7 @@ class HiCaTTrainer(BaseTrainer):
         # Trajectory Transformer
         t_obs_o = torch.cat((z_o[:, 0:1], d_obs_o[:, :-1]), 1)
         t_obs_o, t_act_o, t_rew_o, t_rtg_o = \
-            self.model.head.decode_trajectory(t_obs_o, d_act_o, rew, rtg)
+            self.model.head.decode_trajectory(t_obs_o, act, rew, rtg)
         
         # Prediction
         s_obs_p_o = self.model.head.predict_state(s_obs_o)
@@ -135,7 +135,7 @@ class HiCaTTrainer(BaseTrainer):
             s_obs_z_t = self.target_model.head.project_state(z_t)
             d_obs_z_t = self.target_model.head.project_demonstration(s_obs_t)
             t_obs_z_t = d_obs_t
-            
+        
             s_obs_z1_t, s_obs_z2_t = s_obs_z_t.chunk(2)
             d_obs_z1_t, d_obs_z2_t = d_obs_z_t.chunk(2)
             t_obs_z1_t, t_obs_z2_t = t_obs_z_t.chunk(2)
@@ -265,13 +265,6 @@ class HiCaTTrainer(BaseTrainer):
             # encode obs
             obs = np.array(obs).astype(np.float32)
             obs = obs / 255.0
-            obs = torch.FloatTensor(obs).to(self.device)
-            obs = rearrange(obs, 'n f c h w -> n 1 f c h w')
-            with torch.no_grad():
-                obs, _ = self.model.backbone(obs)
-                obs = self.model.head.obs_to_latent(obs)
-                obs = obs.cpu()
-
             obs_list.append(obs)
 
             # select action with rollout
