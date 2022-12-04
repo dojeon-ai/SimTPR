@@ -45,9 +45,9 @@ eval_every: 1
 save_every: 5
 
 # zero-shot policy evaluation
-eval_policy: False
+eval_policy: False # True
 num_eval_trajectories: 50
-num_envs: 4
+num_envs: 1 # 50
 eval_eps: 0.001
 
 rollout: 

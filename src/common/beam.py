@@ -86,7 +86,7 @@ class Beam():
         
         obs_batch = obs_batch[:, -C:]
         obs_batch, _ = self.model.backbone(obs_batch.to(self.device))
-        obs_batch = self.model.head.encode_obs()
+        obs_batch = self.model.head.encode_obs(obs_batch)
         obs_batch = obs_batch.detach().cpu()
         
         act_batch = act_batch[:, -C:]
@@ -267,11 +267,7 @@ class Beam():
         rtg_batch = torch.cat((rtg_batch, PAD), 1)
         
         # <append> last obs with predicted obs    
-        
-        import pdb
-        pdb.set_trace()
-        
-        obs_batch[:, -1] = rearrange(obs, 'n 1 d -> n d')
+        obs_batch[:, -1] = obs[:, -1] 
 
         # reshape to original
         obs_batch = rearrange(obs_batch, '(n b) t d -> n b t d', n=N, b=B)

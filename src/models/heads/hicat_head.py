@@ -106,11 +106,9 @@ class HiCaTHead(BaseHead):
         T = t
         
         x = obs + self.pos_embed[:, :t, :]
-        #x = self.s_norm_in(x)
-        
         attn_mask = 1 - torch.ones((n, T, T), device=(x.device)).tril_()
+        
         x, _ = self.s_decoder(x, attn_mask=attn_mask)
-        #x = self.s_norm_out(x)
         
         # prediction
         obs = x
@@ -148,10 +146,8 @@ class HiCaTHead(BaseHead):
         x[:, torch.arange(t) * 2, :] += obs
         x[:, torch.arange(t) * 2 + 1, :] += act
         
-        #x = self.d_norm_in(x)
         attn_mask = 1 - torch.ones((n, T, T), device=(x.device)).tril_()
         x, _ = self.d_decoder(x, attn_mask=attn_mask)
-        #x = self.d_norm_out(x)
         
         obs = x[:, torch.arange(t)*2+1, :] # o_(t+1), ... o_(T+1)
         act = x[:, torch.arange(t)*2, :]   # a_(t), ... a_(T)
@@ -185,7 +181,7 @@ class HiCaTHead(BaseHead):
         T = 4*t
         
         obs = obs + self.pos_embed[:, :t, :]
-        act = self.act_in(act) + self.pos_embed[:, :t, :]
+        act = act + self.pos_embed[:, :t, :]
         rew = self.rew_in(rew.unsqueeze(-1)) + self.pos_embed[:, :t, :]
         rtg = self.rtg_in(rtg.unsqueeze(-1)) + self.pos_embed[:, :t, :]
         
@@ -198,7 +194,6 @@ class HiCaTHead(BaseHead):
         #x = self.t_norm_in(x)
         attn_mask = 1 - torch.ones((n, T, T), device=(x.device)).tril_()
         x, _ = self.t_decoder(x, attn_mask=attn_mask)
-        #x = self.t_norm_out(x)
         
         obs = x[:, torch.arange(t)*4+3, :] # o_(t+1), ... o_(T+1)
         act = x[:, torch.arange(t)*4, :]   # a_(t), ... a_(T)
@@ -225,13 +220,11 @@ class HiCaTHead(BaseHead):
     def decode(self, obs, act, rew, rtg):
         n, t, d = obs.shape
         
-        z = self.encode_obs(obs)
-        s_obs = self.decode_state(z)
-        
-        d_obs = torch.cat((z[:, 0:1], s_obs[:, :-1]), 1)
+        s_obs = self.decode_state(obs)
+        d_obs = torch.cat((obs[:, 0:1], s_obs[:, :-1]), 1)
         d_obs, d_act = self.decode_demonstration(d_obs, act)
         
-        t_obs = torch.cat((z[:, 0:1], d_obs[:, :-1]), 1)
+        t_obs = torch.cat((obs[:, 0:1], d_obs[:, :-1]), 1)
         t_obs, t_act, t_rew, t_rtg = self.decode_trajectory(t_obs, d_act, rew, rtg)
         
         obs, act, rew, rtg = self.predict_trajectory(t_obs, t_act, t_rew, t_rtg)
