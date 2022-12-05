@@ -1,5 +1,5 @@
 # defaults
-type: 'hicat'
+type: 'gpt'
 obs_shape: None
 action_size: None
 t_step: None
@@ -23,16 +23,17 @@ scheduler:
     min_lr: 0.0003
     warmup_ratio: 0.2
     gamma: 1.0
-
-tau_scheduler:
-    initial_value: 0.99
-    final_value: 0.995
-    step_size: None
     
-state_lmbda: 1.0
-demon_lmbda: 1.0
-traj_lmbda: 1.0
+dataset_type: 'video' # video, demonstration, trajectory
+obs_lmbda: 1.0
+act_lmbda: 1.0
+rew_lmbda: 1.0
+rtg_lmbda: 1.0
 
+obs_loss_type: consistency # consistency, contrastive
+temperature: None # temperature is used when loss_type is contrastive
+                  # we use consistency loss by default
+    
 # updates
 batch_size: None
 num_epochs: 10
@@ -45,9 +46,9 @@ eval_every: 1
 save_every: 5
 
 # zero-shot policy evaluation
-eval_policy: True
+eval_policy: False
 num_eval_trajectories: 50
-num_envs: 50
+num_envs: 1
 eval_eps: 0.001
 
 rollout: 

@@ -6,6 +6,7 @@ from .bcq_head import BCQHead
 from .blt_head import BLTHead
 from .simclr_head import SimCLRHead
 from .hicat_head import HiCaTHead
+from .gpt_head import GPTHead
 from .dt_head import DTHead
 from .clt_head import CLTHead
 from .curl_head import CURLHead

@@ -18,7 +18,7 @@ if __name__ == '__main__':
     parser.add_argument('--exp_name',     type=str,    default='test')
     parser.add_argument('--mode',         type=str,    choices=['test','full'])
     parser.add_argument('--config_dir',   type=str,    default='atari/pretrain')
-    parser.add_argument('--config_name',  type=str,    default='mixed_clt_impala') 
+    parser.add_argument('--config_name',  type=str,    default='mixed_hicat_impala') 
     parser.add_argument('--debug',        type=str2bool,   default=True)
     parser.add_argument('--num_seeds',     type=int,   default=1)
     parser.add_argument('--num_devices',   type=int,   default=1)
@@ -27,7 +27,7 @@ if __name__ == '__main__':
     
     args = vars(parser.parse_args())
     seeds = np.arange(args.pop('num_seeds'))
-    games = list(atari_human_scores.keys())[:12]
+    games = list(atari_human_scores.keys())[:8]
     num_devices = args.pop('num_devices')
     num_exp_per_device = args.pop('num_exp_per_device')
     pool_size = num_devices * num_exp_per_device 
@@ -35,9 +35,6 @@ if __name__ == '__main__':
     
     # mode
     mode = args.pop('mode')
-    if mode == 'test':
-        games = ['assault', 'asterix', 'boxing', 'frostbite', 
-                 'demon_attack', 'gopher', 'seaquest', 'krull']
         
     # create configurations for child run
     experiments = []

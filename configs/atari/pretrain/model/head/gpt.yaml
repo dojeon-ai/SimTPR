@@ -1,4 +1,4 @@
-type: hicat
+type: gpt
 obs_shape: None
 action_size: None
 t_step: None
