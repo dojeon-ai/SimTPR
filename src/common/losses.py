@@ -91,6 +91,40 @@ class ConsistencyLoss(nn.Module):
             return torch.mean(loss)
         else:
             return loss
+        
+        
+class BarlowLoss(nn.Module):
+    def __init__(self, lmbda, reduction='mean'):
+        super().__init__()
+        self.lmbda = lmbda
+        self.reduction = reduction
+        
+    def _off_diagonal(self, x):
+        # return a flattened view of the off-diagonal elements of a square matrix
+        n, m = x.shape
+        assert n == m
+        return x.flatten()[:-1].view(n - 1, n + 1)[:, 1:].flatten()
+        
+    def forward(self, z1, z2):
+        n, d = z1.shape
+        # normalize along batch dim
+        z1 = (z1 - z1.mean(0)) / z1.std(0) # NxD
+        z2 = (z2 - z2.mean(0)) / z2.std(0) # NxD
+        
+        # cross correltation matrix
+        cor = torch.mm(z1.T, z2)
+        cor.div_(n)
+        
+        # loss
+        on_diag = torch.diagonal(cor).add_(-1).pow_(2).sum()
+        off_diag = self._off_diagonal(cor).pow_(2).sum()
+        
+        loss = on_diag + self.lmbda * off_diag
+        
+        if self.reduction == 'mean':
+            return loss
+        else:
+            raise ValueError
     
 
 ############################################

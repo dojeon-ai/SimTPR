@@ -30,9 +30,9 @@ act_lmbda: 1.0
 rew_lmbda: 1.0
 rtg_lmbda: 1.0
 
-obs_loss_type: consistency # consistency, contrastive
-temperature: None # temperature is used when loss_type is contrastive
-                  # we use consistency loss by default
+obs_loss_type: barlow # consistency, contrastive, barlow
+temperature: None     # temperature is used when loss_type is contrastive
+lmbda: 0.005          # lmbda is used when loss_type is barlow
     
 # updates
 batch_size: None

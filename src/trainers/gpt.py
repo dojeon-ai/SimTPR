@@ -1,5 +1,5 @@
 from .base import BaseTrainer
-from src.common.losses import ConsistencyLoss, CURLLoss
+from src.common.losses import ConsistencyLoss, CURLLoss, BarlowLoss
 from src.common.train_utils import LinearScheduler
 from src.common.vit_utils import get_random_3d_mask, get_3d_masked_input, restore_masked_input
 from src.common.beam import Beam
@@ -59,7 +59,7 @@ class GPTTrainer(BaseTrainer):
         z = self.model.head.encode_obs(y)
         
         z_o = z[:, :-1]
-        z_t = z[:, :-1]
+        z_t = z[:, 1:]
         act = act[:, :-1]
         rew = rew[:, :-1]
         rtg = rtg[:, :-1]
@@ -93,21 +93,28 @@ class GPTTrainer(BaseTrainer):
         
         # obs loss
         if self.cfg.obs_loss_type == 'consistency':
-            obs_loss_fn = ConsistencyLoss()
-        
-        elif self.cfg.obs_loss_type == 'contrastive':
-            obs_loss_fn = CURLLoss(self.cfg.temperature)
-        
-        obs_p1, obs_p2 = obs_p.chunk(2)
-        obs_p1, obs_p2 = rearrange(obs_p1, 'n t d -> (n t) d'), rearrange(obs_p2, 'n t d -> (n t) d')
-        
-        obs_z = z_t.detach()
-        obs_z1, obs_z2 = obs_z.chunk(2)
-        obs_z1, obs_z2 = rearrange(obs_z1, 'n t d -> (n t) d'), rearrange(obs_z2, 'n t d -> (n t) d')
+            obs_loss_fn = ConsistencyLoss()        
+            obs_p1, obs_p2 = obs_p.chunk(2)
+            obs_p1, obs_p2 = rearrange(obs_p1, 'n t d -> (n t) d'), rearrange(obs_p2, 'n t d -> (n t) d')
 
-        obs_loss = 0.5 * (obs_loss_fn(obs_p1, obs_z2) + obs_loss_fn(obs_p2, obs_z1))
-        obs_loss = torch.mean(obs_loss)
+            obs_z = z_t.detach()
+            obs_z1, obs_z2 = obs_z.chunk(2)
+            obs_z1, obs_z2 = rearrange(obs_z1, 'n t d -> (n t) d'), rearrange(obs_z2, 'n t d -> (n t) d')
 
+            obs_loss = 0.5 * (obs_loss_fn(obs_p1, obs_z2) + obs_loss_fn(obs_p2, obs_z1))
+            obs_loss = torch.mean(obs_loss)
+            
+        elif self.cfg.obs_loss_type == 'barlow':
+            obs_loss_fn = BarlowLoss(self.cfg.lmbda)
+            obs_p1, obs_p2 = obs_o.chunk(2)
+            obs_p1, obs_p2 = rearrange(obs_p1, 'n t d -> (n t) d'), rearrange(obs_p2, 'n t d -> (n t) d')
+
+            obs_z = z_t
+            obs_z1, obs_z2 = obs_z.chunk(2)
+            obs_z1, obs_z2 = rearrange(obs_z1, 'n t d -> (n t) d'), rearrange(obs_z2, 'n t d -> (n t) d')
+            
+            obs_loss = 0.5 * (obs_loss_fn(obs_p1, obs_z2) + obs_loss_fn(obs_p2, obs_z1))
+            
         # act loss
         act_loss_fn = nn.CrossEntropyLoss(reduction='none')
         act_p = rearrange(act_p, 'n t d -> (n t) d')
