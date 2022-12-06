@@ -91,29 +91,26 @@ class GPTTrainer(BaseTrainer):
         #################
         # loss
         
-        # obs loss
-        if self.cfg.obs_loss_type == 'consistency':
-            obs_loss_fn = ConsistencyLoss()        
-            obs_p1, obs_p2 = obs_p.chunk(2)
-            obs_p1, obs_p2 = rearrange(obs_p1, 'n t d -> (n t) d'), rearrange(obs_p2, 'n t d -> (n t) d')
+        # obs loss            
+        obs_o1, obs_o2 = obs_o.chunk(2)
+        obs_o1, obs_o2 = rearrange(obs_o1, 'n t d -> (n t) d'), rearrange(obs_o2, 'n t d -> (n t) d')
+ 
+        obs_p1, obs_p2 = obs_p.chunk(2)
+        obs_p1, obs_p2 = rearrange(obs_p1, 'n t d -> (n t) d'), rearrange(obs_p2, 'n t d -> (n t) d')
 
-            obs_z = z_t.detach()
-            obs_z1, obs_z2 = obs_z.chunk(2)
-            obs_z1, obs_z2 = rearrange(obs_z1, 'n t d -> (n t) d'), rearrange(obs_z2, 'n t d -> (n t) d')
+        obs_z = z_t.detach()
+        obs_z1, obs_z2 = obs_z.chunk(2)
+        obs_z1, obs_z2 = rearrange(obs_z1, 'n t d -> (n t) d'), rearrange(obs_z2, 'n t d -> (n t) d')
 
-            obs_loss = 0.5 * (obs_loss_fn(obs_p1, obs_z2) + obs_loss_fn(obs_p2, obs_z1))
-            obs_loss = torch.mean(obs_loss)
+        cons_loss_fn = ConsistencyLoss()       
+        cons_loss = 0.5 * (cons_loss_fn(obs_p1, obs_z2) + cons_loss_fn(obs_p2, obs_z1))
+        cons_loss = torch.mean(cons_loss)
+        
+        barlow_loss_fn = BarlowLoss(self.cfg.lmbda)
+        barlow_loss = 0.5 * (barlow_loss_fn(obs_o1, obs_z2) + barlow_loss_fn(obs_o2, obs_z1))
             
-        elif self.cfg.obs_loss_type == 'barlow':
-            obs_loss_fn = BarlowLoss(self.cfg.lmbda)
-            obs_p1, obs_p2 = obs_o.chunk(2)
-            obs_p1, obs_p2 = rearrange(obs_p1, 'n t d -> (n t) d'), rearrange(obs_p2, 'n t d -> (n t) d')
-
-            obs_z = z_t
-            obs_z1, obs_z2 = obs_z.chunk(2)
-            obs_z1, obs_z2 = rearrange(obs_z1, 'n t d -> (n t) d'), rearrange(obs_z2, 'n t d -> (n t) d')
-            
-            obs_loss = 0.5 * (obs_loss_fn(obs_p1, obs_z2) + obs_loss_fn(obs_p2, obs_z1))
+        obs_loss = self.cfg.cons_lmbda * cons_loss + self.cfg.barlow_lmbda * barlow_loss
+        
             
         # act loss
         act_loss_fn = nn.CrossEntropyLoss(reduction='none')
