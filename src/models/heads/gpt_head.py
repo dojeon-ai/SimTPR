@@ -25,11 +25,10 @@ class GPTHead(BaseHead):
         self.in_dim = in_dim
         self.proj_dim = proj_dim
         
-        self.obs_in = nn.Sequential(nn.Linear(in_dim, proj_dim, bias=False), 
+        self.obs_in = nn.Sequential(nn.Linear(in_dim, proj_dim), 
                                     nn.BatchNorm1d(proj_dim), 
                                     nn.ReLU(), 
-                                    nn.Linear(proj_dim, proj_dim, bias=False),
-                                    nn.BatchNorm1d(proj_dim, affine=False))
+                                    nn.Linear(proj_dim, proj_dim))
         self.act_in = nn.Embedding(action_size, proj_dim)
         self.rew_in = nn.Linear(1, proj_dim) 
         self.rtg_in = nn.Linear(1, proj_dim)
