@@ -27,12 +27,10 @@ scheduler:
 dataset_type: 'video' # video, demonstration, trajectory
 obs_lmbda: 1.0
 act_lmbda: 1.0
-rew_lmbda: 1.0
-rtg_lmbda: 1.0
 
 cons_lmbda: 1.0
-barlow_lmbda: 0.0
-temperature: None     # temperature is used when loss_type is contrastive
+barlow_lmbda: 0.01
+temperature: 0.1      # temperature is used when loss_type is contrastive
 lmbda: 0.005          # lmbda is used when loss_type is barlow
 
 # updates

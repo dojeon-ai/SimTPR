@@ -48,8 +48,6 @@ class GPTTrainer(BaseTrainer):
         x = torch.cat([x1, x2], axis=0)        
         x = rearrange(x, 'n (t f c) h w -> n t f c h w', t=t, f=f)
         act = torch.cat([act, act], axis=0)
-        rew = torch.cat([rew, rew], axis=0)
-        rtg = torch.cat([rtg, rtg], axis=0) / self.max_rtg
         
         #################
         # forward
@@ -61,32 +59,11 @@ class GPTTrainer(BaseTrainer):
         z_o = z[:, :-1]
         z_t = z[:, 1:]
         act = act[:, :-1]
-        rew = rew[:, :-1]
-        rtg = rtg[:, :-1]
-        
-        # mask based on dataset-type
-        d_type = self.cfg.dataset_type 
-        n, t = act.shape
-        
-        if d_type == 'video':
-            act_mask = torch.ones((n, t), device=x.device)
-            rew_mask = torch.ones((n, t), device=x.device)
-            rtg_mask = torch.ones((n, t), device=x.device)
-        
-        elif d_type == 'demonstration':
-            act_mask = torch.zeros((n, t), device=x.device)
-            rew_mask = torch.ones((n, t), device=x.device)
-            rtg_mask = torch.ones((n, t), device=x.device)
-        
-        elif d_type == 'trajectory':
-            act_mask = torch.zeros((n, t), device=x.device)
-            rew_mask = torch.zeros((n, t), device=x.device)
-            rtg_mask = torch.zeros((n, t), device=x.device)
         
         # decode
-        obs_o, act_o, rew_o, rtg_o = self.model.head.decode(z_o, act, rew, rtg,
-                                                            act_mask, rew_mask, rtg_mask)  
-        obs_p, act_p, rew_p, rtg_p = self.model.head.predict(obs_o, act_o, rew_o, rtg_o) 
+        d_type = self.cfg.dataset_type
+        obs_o, act_o = self.model.head.decode(z_o, act, d_type)  
+        obs_p, act_p = self.model.head.predict(obs_o, act_o) 
 
         #################
         # loss
@@ -99,7 +76,7 @@ class GPTTrainer(BaseTrainer):
         obs_z1, obs_z2 = obs_z.chunk(2)
         obs_z1, obs_z2 = rearrange(obs_z1, 'n t d -> (n t) d'), rearrange(obs_z2, 'n t d -> (n t) d')
 
-        cons_loss_fn = ConsistencyLoss()       
+        cons_loss_fn = ConsistencyLoss()          
         cons_loss = 0.5 * (cons_loss_fn(obs_p1, obs_z2.detach()) + cons_loss_fn(obs_p2, obs_z1.detach()))
         cons_loss = torch.mean(cons_loss)
         
@@ -113,34 +90,15 @@ class GPTTrainer(BaseTrainer):
         act_loss_fn = nn.CrossEntropyLoss(reduction='none')
         act_p = rearrange(act_p, 'n t d -> (n t) d')
         act_t = rearrange(act, 'n t -> (n t)')
-        act_loss = act_loss_fn(act_p, act_t)
-        
-        act_idx = (1-act_mask).flatten()
-        act_loss = torch.sum(act_loss * act_idx) / (torch.sum(act_idx) + 1e-6)
+        act_loss = act_loss_fn(act_p, act_t)        
+        act_loss = torch.mean(act_loss)
         act_acc = torch.mean((torch.argmax(act_p, 1) == act_t).float())
-  
-        # rew loss
-        rew_loss_fn = nn.MSELoss(reduction='none')        
-        rew_p = rearrange(rew_p, 'n t 1 -> (n t 1)')
-        rew = rearrange(rew, 'n t -> (n t)')
-        rew_loss = rew_loss_fn(rew_p, rew)
-
-        rew_idx = (1-rew_mask).flatten()
-        rew_loss = torch.sum(rew_loss * rew_idx) / (torch.sum(rew_idx) + 1e-6)
-            
-        # rtg loss
-        rtg_loss_fn = nn.MSELoss(reduction='none')
-        rtg_p = rearrange(rtg_p, 'n t 1 -> (n t 1)')
-        rtg = rearrange(rtg, 'n t -> (n t)')
-        rtg_loss = rtg_loss_fn(rtg_p, rtg)
-
-        rtg_idx = (1-rtg_mask).flatten()
-        rtg_loss = torch.sum(rtg_loss * rtg_idx) / (torch.sum(rtg_idx) + 1e-6)
+        
+        if d_type == 'video':
+            act_loss = torch.Tensor([0.0]).to(x.device)
         
         loss = (self.cfg.obs_lmbda * obs_loss + 
-                self.cfg.act_lmbda * act_loss + 
-                self.cfg.rew_lmbda * rew_loss + 
-                self.cfg.rtg_lmbda * rtg_loss)
+                self.cfg.act_lmbda * act_loss)
         
         ###############
         # logs
@@ -156,8 +114,6 @@ class GPTTrainer(BaseTrainer):
                     'barlow_loss': barlow_loss.item(),
                     'cons_loss': cons_loss.item(),
                     'act_loss': act_loss.item(),
-                    'rew_loss': rew_loss.item(),
-                    'rtg_loss': rtg_loss.item(),
                     'act_acc': act_acc.item(),
                     'pos_sim': pos_sim.item(),
                     'neg_sim': neg_sim.item(),
