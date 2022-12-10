@@ -55,6 +55,9 @@ class GPTHead(BaseHead):
         # initialize nn.Linear and nn.LayerNorm
         self.apply(xavier_uniform_init)
         
+        torch.nn.init.normal_(self.obs_in[-1].weight, std=.01)
+        torch.nn.init.normal_(self.obs_pred[-1].weight, std=.01)
+        
         
     def encode_obs(self, obs):
         n, t, d = obs.shape

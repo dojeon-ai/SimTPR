@@ -109,6 +109,11 @@ class GPTTrainer(BaseTrainer):
         neg_sim = (torch.sum(sim * (1-pos_idx)) / torch.sum(1-pos_idx))
         pos_neg_diff = pos_sim - neg_sim
         
+        s = torch.linalg.svdvals(obs_z1)
+        rank_eps001 = torch.sum(s > 0.01)
+        rank_eps01 = torch.sum(s > 0.1)
+        rank_eps1 = torch.sum(s > 1)
+        
         log_data = {'loss': loss.item(),
                     'obs_loss': obs_loss.item(),
                     'barlow_loss': barlow_loss.item(),
@@ -117,7 +122,10 @@ class GPTTrainer(BaseTrainer):
                     'act_acc': act_acc.item(),
                     'pos_sim': pos_sim.item(),
                     'neg_sim': neg_sim.item(),
-                    'pos_neg_diff': pos_neg_diff.item()}
+                    'pos_neg_diff': pos_neg_diff.item(),
+                    'rank_eps001': rank_eps001,
+                    'rank_eps01': rank_eps01,
+                    'rank_eps1': rank_eps1}
         
         return loss, log_data
 
