@@ -3,7 +3,7 @@ import torch
 import numpy as np
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
-from src.common.train_utils import xavier_uniform_init
+from src.common.train_utils import transformer_init
 from src.common.vit_utils import get_1d_sincos_pos_embed_from_grid
 
 
@@ -77,7 +77,7 @@ class Transformer(nn.Module):
                 PreNorm(dim, Attention(dim, heads = heads, dropout = dropout)),
                 PreNorm(dim, FeedForward(dim, mlp_dim, dropout = dropout))
             ]))
-        self.apply(xavier_uniform_init)
+        self.apply(transformer_init)
 
     def forward(self, x, attn_mask=None):
         attn_maps = []

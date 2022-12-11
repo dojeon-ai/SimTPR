@@ -39,16 +39,9 @@ def orthogonal_init(m):
     
     return m
 
-def xavier_uniform_init(m):
+def transformer_init(m):
     if isinstance(m, nn.Linear):
-        gain = 1.0
-        nn.init.orthogonal_(m.weight.data, gain)
-        if m.bias is not None:
-            nn.init.constant_(m.bias.data, 0)
-    
-    elif isinstance(m, nn.Conv2d):
-        gain = nn.init.calculate_gain('relu')
-        nn.init.orthogonal_(m.weight.data, gain)
+        nn.init.normal_(m.weight, std=0.02)
         if m.bias is not None:
             nn.init.constant_(m.bias.data, 0)
         

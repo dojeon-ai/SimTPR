@@ -4,7 +4,7 @@ import torch, numpy as np
 from einops import rearrange
 from .base import BaseHead
 from src.models.layers import *
-from src.common.train_utils import xavier_uniform_init, init_normalization
+from src.common.train_utils import init_normalization
 
 
 class BLTHead(BaseHead):

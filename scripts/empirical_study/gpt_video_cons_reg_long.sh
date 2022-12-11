@@ -2,7 +2,7 @@ cd ..
 cd ..
 python run_atari_pretrain.py \
     --group_name baseline \
-    --exp_name gpt_video_brw001 \
+    --exp_name gpt_video_cons_reg \
     --config_name mixed_gpt_impala \
     --mode full \
     --debug False \
@@ -10,4 +10,5 @@ python run_atari_pretrain.py \
     --num_devices 8 \
     --num_exp_per_device 1 \
     --overrides trainer.dataset_type='video' \
-    --overrides trainer.barlow_lmbda=0.01 \
+    --overrides trainer.reg_lmbda=0.01 \
+    --overrides trainer.num_epochs=40 \

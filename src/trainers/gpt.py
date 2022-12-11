@@ -1,15 +1,11 @@
 from .base import BaseTrainer
 from src.common.losses import ConsistencyLoss, CURLLoss, BarlowLoss
 from src.common.train_utils import LinearScheduler
-from src.common.vit_utils import get_random_3d_mask, get_3d_masked_input, restore_masked_input
-from src.common.beam import Beam
 from einops import rearrange
-from collections import deque
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
-import copy
 import tqdm
 import random
 import wandb
@@ -31,11 +27,6 @@ class GPTTrainer(BaseTrainer):
         super().__init__(cfg, device, 
                          train_loader, eval_act_loader, eval_rew_loader, env,
                          logger, agent_logger, aug_func, model)          
-        max_rtg = 0
-        datasets = self.train_loader.dataset.datasets
-        for dataset in datasets:
-            max_rtg = max(max_rtg, torch.max(dataset.rtg).item())
-        self.max_rtg = max_rtg
         
         
     def compute_loss(self, obs, act, rew, done, rtg, train=True):
@@ -69,23 +60,30 @@ class GPTTrainer(BaseTrainer):
         # loss
         
         # obs loss            
-        obs_p1, obs_p2 = obs_p.chunk(2)
-        obs_p1, obs_p2 = rearrange(obs_p1, 'n t d -> (n t) d'), rearrange(obs_p2, 'n t d -> (n t) d')
-
         obs_t1, obs_t2 = obs_t.chunk(2)
         obs_t1, obs_t2 = rearrange(obs_t1, 'n t d -> (n t) d'), rearrange(obs_t2, 'n t d -> (n t) d')
 
-        cons_loss_fn = ConsistencyLoss()          
-        cons_loss = 0.5 * (cons_loss_fn(obs_p1, obs_t2.detach()) + cons_loss_fn(obs_p2, obs_t1.detach()))
-        cons_loss = torch.mean(cons_loss)
+        if self.cfg.loss_type == 'cons':
+            obs_loss_fn = ConsistencyLoss() 
+            obs_p1, obs_p2 = obs_p.chunk(2)
+            obs_p1, obs_p2 = rearrange(obs_p1, 'n t d -> (n t) d'), rearrange(obs_p2, 'n t d -> (n t) d')
+            obs_loss = 0.5 * (obs_loss_fn(obs_p1, obs_t2.detach()) + obs_loss_fn(obs_p2, obs_t1.detach()))
+            obs_loss = torch.mean(obs_loss)
+            
+        elif self.cfg.loss_type == 'cont':
+            obs_loss_fn = CURLLoss(self.cfg.temperature) 
+            obs_d1, obs_d2 = obs_d.chunk(2)
+            obs_d1, obs_d2 = rearrange(obs_d1, 'n t d -> (n t) d'), rearrange(obs_d2, 'n t d -> (n t) d')
+            obs_loss = 0.5 * (obs_loss_fn(obs_d1, obs_t2) + obs_loss_fn(obs_d2, obs_t1))
+            obs_loss = torch.mean(obs_loss)
+            
+        else:
+            raise NotImplemented
         
-        barlow_loss_fn = BarlowLoss(self.cfg.lmbda)
+        reg_loss_fn = BarlowLoss(self.cfg.barlow_lmbda)
         t1 = F.normalize(obs_t1, dim=-1, p=2)
         t2 = F.normalize(obs_t2, dim=-1, p=2)
-        barlow_loss = barlow_loss_fn(t1, t2)
-                    
-        obs_loss = self.cfg.cons_lmbda * cons_loss + self.cfg.barlow_lmbda * barlow_loss
-        
+        reg_loss = reg_loss_fn(t1, t2)
             
         # act loss
         act_loss_fn = nn.CrossEntropyLoss(reduction='none')
@@ -99,7 +97,8 @@ class GPTTrainer(BaseTrainer):
             act_loss = torch.Tensor([0.0]).to(x.device)
         
         loss = (self.cfg.obs_lmbda * obs_loss + 
-                self.cfg.act_lmbda * act_loss)
+                self.cfg.act_lmbda * act_loss + 
+                self.cfg.reg_lmbda * reg_loss)
         
         ###############
         # logs
@@ -107,8 +106,7 @@ class GPTTrainer(BaseTrainer):
         if train:
             log_data = {'loss': loss.item(),
                         'obs_loss': obs_loss.item(),
-                        'barlow_loss': barlow_loss.item(),
-                        'cons_loss': cons_loss.item(),
+                        'reg_loss': reg_loss.item(),
                         'act_loss': act_loss.item(),
                         'act_acc': act_acc.item()}
             
@@ -137,84 +135,3 @@ class GPTTrainer(BaseTrainer):
     def update(self, obs, act, rew, done, rtg):
         pass
 
-            
-    def evaluate_policy(self):
-        self.model.eval()
-        
-        # initialize history
-        C = self.cfg.rollout.context_len
-        obs_list = deque(maxlen=C)
-        act_list = deque(maxlen=C) 
-        rew_list = deque(maxlen=C)
-        rtg_list = deque(maxlen=C)
-
-        # initialize tree
-        rollout_cfg = self.cfg.rollout
-        rollout_type = rollout_cfg.pop('type')
-
-        if rollout_type == 'mcts':        
-            raise NotImplemented
-
-        elif rollout_type == 'beam':
-            tree = Beam(model=self.model, 
-                        device=self.device,
-                        num_envs=self.cfg.num_envs,
-                        action_size=self.cfg.action_size,
-                        rtg_scale=self.max_rtg,
-                        **rollout_cfg)
-
-        # run trajectory
-        obs = self.env.reset()
-        rtg = np.array([self.max_rtg] * self.cfg.num_envs)
-        while True:
-            # encode obs
-            obs = np.array(obs).astype(np.float32)
-            obs = obs / 255.0
-            obs = torch.FloatTensor(obs).to(self.device)
-            obs = rearrange(obs, 'n f c h w -> n 1 f c h w')
-            with torch.no_grad():
-                obs, _ = self.model.backbone(obs)
-                obs = self.model.head.obs_to_latent(obs)
-                obs = obs.cpu()
-
-            obs_list.append(obs)
-
-            # select action with rollout
-            state = {
-                'obs_list': obs_list,
-                'act_list': act_list,
-                'rew_list': rew_list,
-                'rtg_list': rtg_list
-            }
-
-            beam = tree.rollout(state)            
-            tree_action = beam['act_batch'].numpy()[:, 0]
-            rand_action = np.random.randint(0, self.cfg.action_size-1, self.cfg.num_envs)
-
-            # eps-greedy
-            eps = self.cfg.eval_eps
-            prob = np.random.rand(self.cfg.num_envs)
-            rand_idx = (prob <= eps)
-            action = rand_idx * rand_action + (1-rand_idx) * tree_action
-
-            # step
-            next_obs, reward, done, info = self.env.step(action)
-
-            # logger
-            self.agent_logger.step(obs, reward, done, info)
-
-            # move on
-            if np.sum(self.agent_logger.traj_done) == self.cfg.num_envs:
-                break
-            else:
-                obs = next_obs
-                act_list.append(action)
-                rew_list.append(reward)
-                rtg_list.append(rtg / self.max_rtg)
-                rtg = rtg - reward
-    
-        log_data = self.agent_logger.fetch_log()
-        
-        return log_data
-
-            

@@ -2,13 +2,13 @@ cd ..
 cd ..
 python run_atari_pretrain.py \
     --group_name baseline \
-    --exp_name clt_vid_cons \
-    --config_name mixed_clt_impala \
+    --exp_name gpt_video_cont \
+    --config_name mixed_gpt_impala \
     --mode full \
     --debug False \
     --num_seeds 1 \
-    --num_devices 4 \
+    --num_devices 8 \
     --num_exp_per_device 1 \
     --overrides trainer.dataset_type='video' \
-    --overrides trainer.obs_loss_type='consistency' \
-    --overrides trainer.projection=True
+    --overrides trainer.reg_lmbda=0.0 \
+    --overrides trainer.loss_type='cont' \

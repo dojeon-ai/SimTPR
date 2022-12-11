@@ -14,7 +14,7 @@ optimizer:
     type: 'adamw'
     lr: 0.0003
     weight_decay: 0.00001
-    betas: [0.9, 0.999]
+    betas: [0.9, 0.95]
     eps: 0.00015
 
 scheduler:
@@ -28,10 +28,10 @@ dataset_type: 'video' # video, demonstration, trajectory
 obs_lmbda: 1.0
 act_lmbda: 1.0
 
-cons_lmbda: 1.0
-barlow_lmbda: 0.01
-temperature: 0.1      # temperature is used when loss_type is contrastive
-lmbda: 0.005          # lmbda is used when loss_type is barlow
+loss_type: 'cons'
+temperature: 0.1   # temperature is used when loss_type is contrastive
+reg_lmbda: 0.01
+barlow_lmbda: 0.005     
 
 # updates
 batch_size: None
@@ -42,7 +42,7 @@ clip_grad_norm: 0.5
 base_metric: 'act_f1'
 log_every: 1000
 eval_every: 1
-save_every: 5
+save_every: 10
 
 # zero-shot policy evaluation
 eval_policy: False

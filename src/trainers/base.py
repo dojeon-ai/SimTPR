@@ -214,7 +214,7 @@ class BaseTrainer():
         
         return log_data
     
-    
+
     def evaluate_feature(self):
         self.model.eval()
         for batch in tqdm.tqdm(self.train_loader):   
