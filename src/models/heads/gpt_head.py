@@ -25,7 +25,7 @@ class GPTHead(BaseHead):
         self.in_dim = in_dim
         self.proj_dim = proj_dim
         
-        self.obs_in = nn.Sequential(nn.Linear(in_dim, proj_dim), 
+        self.obs_in = nn.Sequential(nn.Linear(in_dim, proj_dim, bias=False), 
                                     nn.BatchNorm1d(proj_dim), 
                                     nn.ReLU(), 
                                     nn.Linear(proj_dim, proj_dim))

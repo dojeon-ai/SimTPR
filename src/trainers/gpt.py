@@ -38,7 +38,7 @@ class GPTTrainer(BaseTrainer):
         self.max_rtg = max_rtg
         
         
-    def compute_loss(self, obs, act, rew, done, rtg):
+    def compute_loss(self, obs, act, rew, done, rtg, train=True):
         ####################
         # augmentation
         n, t, f, c, h, w = obs.shape
@@ -56,14 +56,14 @@ class GPTTrainer(BaseTrainer):
         y, _ = self.model.backbone(x)  
         z = self.model.head.encode_obs(y)
         
-        z_o = z[:, :-1]
-        z_t = z[:, 1:]
+        obs_o = z[:, :-1]
+        obs_t = z[:, 1:]
         act = act[:, :-1]
         
         # decode
         d_type = self.cfg.dataset_type
-        obs_o, act_o = self.model.head.decode(z_o, act, d_type)  
-        obs_p, act_p = self.model.head.predict(obs_o, act_o) 
+        obs_d, act_d = self.model.head.decode(obs_o, act, d_type)  
+        obs_p, act_p = self.model.head.predict(obs_d, act_d) 
 
         #################
         # loss
@@ -72,17 +72,18 @@ class GPTTrainer(BaseTrainer):
         obs_p1, obs_p2 = obs_p.chunk(2)
         obs_p1, obs_p2 = rearrange(obs_p1, 'n t d -> (n t) d'), rearrange(obs_p2, 'n t d -> (n t) d')
 
-        obs_z = z_t
-        obs_z1, obs_z2 = obs_z.chunk(2)
-        obs_z1, obs_z2 = rearrange(obs_z1, 'n t d -> (n t) d'), rearrange(obs_z2, 'n t d -> (n t) d')
+        obs_t1, obs_t2 = obs_t.chunk(2)
+        obs_t1, obs_t2 = rearrange(obs_t1, 'n t d -> (n t) d'), rearrange(obs_t2, 'n t d -> (n t) d')
 
         cons_loss_fn = ConsistencyLoss()          
-        cons_loss = 0.5 * (cons_loss_fn(obs_p1, obs_z2.detach()) + cons_loss_fn(obs_p2, obs_z1.detach()))
+        cons_loss = 0.5 * (cons_loss_fn(obs_p1, obs_t2.detach()) + cons_loss_fn(obs_p2, obs_t1.detach()))
         cons_loss = torch.mean(cons_loss)
         
         barlow_loss_fn = BarlowLoss(self.cfg.lmbda)
-        barlow_loss = 0.5 * (barlow_loss_fn(obs_z1, obs_z2) + barlow_loss_fn(obs_z2, obs_z1))
-            
+        t1 = F.normalize(obs_t1, dim=-1, p=2)
+        t2 = F.normalize(obs_t2, dim=-1, p=2)
+        barlow_loss = barlow_loss_fn(t1, t2)
+                    
         obs_loss = self.cfg.cons_lmbda * cons_loss + self.cfg.barlow_lmbda * barlow_loss
         
             
@@ -103,29 +104,32 @@ class GPTTrainer(BaseTrainer):
         ###############
         # logs
         # quantitative
-        pos_idx = torch.eye(obs_p1.shape[0], device=x.device)
-        sim = F.cosine_similarity(obs_p1.unsqueeze(1), obs_z2.unsqueeze(0), dim=-1)
-        pos_sim = (torch.sum(sim * pos_idx) / torch.sum(pos_idx))
-        neg_sim = (torch.sum(sim * (1-pos_idx)) / torch.sum(1-pos_idx))
-        pos_neg_diff = pos_sim - neg_sim
+        if train:
+            log_data = {'loss': loss.item(),
+                        'obs_loss': obs_loss.item(),
+                        'barlow_loss': barlow_loss.item(),
+                        'cons_loss': cons_loss.item(),
+                        'act_loss': act_loss.item(),
+                        'act_acc': act_acc.item()}
+            
+        else:
+            pos_idx = torch.eye(obs_p1.shape[0], device=x.device)
+            sim = F.cosine_similarity(obs_p1.unsqueeze(1), obs_t2.unsqueeze(0), dim=-1)
+            pos_sim = (torch.sum(sim * pos_idx) / torch.sum(pos_idx))
+            neg_sim = (torch.sum(sim * (1-pos_idx)) / torch.sum(1-pos_idx))
+            pos_neg_diff = pos_sim - neg_sim
+
+            s = torch.linalg.svdvals(obs_t1)
+            rank_eps001 = torch.sum(s > 0.01)
+            rank_eps01 = torch.sum(s > 0.1)
+            rank_eps1 = torch.sum(s > 1)
         
-        s = torch.linalg.svdvals(obs_z1)
-        rank_eps001 = torch.sum(s > 0.01)
-        rank_eps01 = torch.sum(s > 0.1)
-        rank_eps1 = torch.sum(s > 1)
-        
-        log_data = {'loss': loss.item(),
-                    'obs_loss': obs_loss.item(),
-                    'barlow_loss': barlow_loss.item(),
-                    'cons_loss': cons_loss.item(),
-                    'act_loss': act_loss.item(),
-                    'act_acc': act_acc.item(),
-                    'pos_sim': pos_sim.item(),
-                    'neg_sim': neg_sim.item(),
-                    'pos_neg_diff': pos_neg_diff.item(),
-                    'rank_eps001': rank_eps001,
-                    'rank_eps01': rank_eps01,
-                    'rank_eps1': rank_eps1}
+            log_data = {'pos_sim': pos_sim.item(),
+                        'neg_sim': neg_sim.item(),
+                        'pos_neg_diff': pos_neg_diff.item(),
+                        'rank_eps001': rank_eps001,
+                        'rank_eps01': rank_eps01,
+                        'rank_eps1': rank_eps1}
         
         return loss, log_data
 

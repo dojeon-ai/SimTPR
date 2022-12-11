@@ -164,8 +164,11 @@ class BaseTrainer():
         
         rew_eval_logs = self.probe_reward()
         act_eval_logs = self.probe_action()
+        feat_eval_logs = self.evaluate_feature()
+        
         eval_logs.update(rew_eval_logs)
         eval_logs.update(act_eval_logs)
+        eval_logs.update(feat_eval_logs)
 
         return eval_logs
     
@@ -208,6 +211,22 @@ class BaseTrainer():
                     obs = next_obs
         
         log_data = self.agent_logger.fetch_log()
+        
+        return log_data
+    
+    
+    def evaluate_feature(self):
+        self.model.eval()
+        for batch in tqdm.tqdm(self.train_loader):   
+            obs = batch.observation.to(self.device)
+            act = batch.action.to(self.device)
+            rew = batch.reward.to(self.device)
+            done = batch.done.to(self.device)
+            rtg = batch.rtg.to(self.device)
+            
+            with torch.no_grad():
+                loss, log_data = self.compute_loss(obs, act, rew, done, rtg, train=False)
+            break
         
         return log_data
     
