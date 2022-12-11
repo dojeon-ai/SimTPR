@@ -5,7 +5,7 @@ from einops import rearrange
 from .base import BaseHead
 from src.models.layers import *
 from src.common.vit_utils import get_1d_sincos_pos_embed_from_grid
-from src.common.train_utils import xavier_uniform_init, init_normalization
+from src.common.train_utils import init_normalization
 
 
 class GPTHead(BaseHead):
@@ -25,13 +25,13 @@ class GPTHead(BaseHead):
         self.in_dim = in_dim
         self.proj_dim = proj_dim
         
-        self.obs_in = nn.Sequential(nn.Linear(in_dim, proj_dim), 
+        self.obs_in = nn.Sequential(nn.Linear(in_dim, proj_dim, bias=False), 
                                     nn.BatchNorm1d(proj_dim), 
                                     nn.ReLU(), 
                                     nn.Linear(proj_dim, proj_dim))
         self.act_in = nn.Embedding(action_size, proj_dim)
         
-        max_t_step = 200
+        max_t_step = t_step*2
         self.pos_embed = nn.Parameter((torch.randn(1, max_t_step, proj_dim)), requires_grad=False)
         pos_embed = get_1d_sincos_pos_embed_from_grid(proj_dim, np.arange(max_t_step))
         self.pos_embed.copy_(torch.from_numpy(pos_embed).float().unsqueeze(0))
@@ -52,11 +52,8 @@ class GPTHead(BaseHead):
         self._initialize_weights()
         
     def _initialize_weights(self):
-        # initialize nn.Linear and nn.LayerNorm
-        self.apply(xavier_uniform_init)
-        
-        torch.nn.init.normal_(self.obs_in[-1].weight, std=.01)
-        torch.nn.init.normal_(self.obs_pred[-1].weight, std=.01)
+        torch.nn.init.normal_(self.obs_in[-1].weight, std=.02)
+        torch.nn.init.normal_(self.obs_pred[-1].weight, std=.02)
         
         
     def encode_obs(self, obs):
@@ -66,12 +63,9 @@ class GPTHead(BaseHead):
         obs = rearrange(obs, '(n t) d-> n t d', t=t)
         
         return obs
-            
         
     def decode(self, obs, act, dataset_type):
-        n, t, d = obs.shape
-                
-        # embed
+        n, t, d = obs.shape        
         obs = obs + self.pos_embed[:, :t, :]
         act = self.act_in(act) + self.pos_embed[:, :t, :]
         

@@ -3,7 +3,7 @@ import torch
 import numpy as np
 from einops import rearrange
 from src.models.backbones.base import BaseBackbone
-from src.common.train_utils import orthogonal_init, xavier_uniform_init, init_normalization
+from src.common.train_utils import orthogonal_init, init_normalization
 
 
 def fixup_init(layer, num_layers):
@@ -114,8 +114,6 @@ class Impala(BaseBackbone):
         self.layers = nn.Sequential(*layers)        
         if init_type == 'orthogonal':
             self.apply(orthogonal_init)
-        elif init_type == 'xavier_uniform':
-            self.apply(xavier_uniform_init)
 
     def forward(self, x):
         n, t, f, c, h, w = x.shape

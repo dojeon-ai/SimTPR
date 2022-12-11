@@ -1,7 +1,7 @@
 import torch.nn as nn
 import torch
 from src.models.backbones.base import BaseBackbone
-from src.common.train_utils import orthogonal_init, xavier_uniform_init
+from src.common.train_utils import orthogonal_init
 
 
 class DENature(BaseBackbone):
@@ -24,8 +24,7 @@ class DENature(BaseBackbone):
         )
         if init_type == 'orthogonal':
             self.apply(orthogonal_init)
-        elif init_type == 'xavier_uniform':
-            self.apply(xavier_uniform_init)
+
     def forward(self, x):
         n, t, f, c, h, w = x.shape
         x = rearrange(x, 'n t f c h w -> (n t) (f c) h w')

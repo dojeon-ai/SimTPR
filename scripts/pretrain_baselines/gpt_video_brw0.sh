@@ -10,5 +10,4 @@ python run_atari_pretrain.py \
     --num_devices 8 \
     --num_exp_per_device 1 \
     --overrides trainer.dataset_type='video' \
-    --overrides trainer.barlow_lmbda=0.01 \
-    
+    --overrides trainer.barlow_lmbda=0.0 \

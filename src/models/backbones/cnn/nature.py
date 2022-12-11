@@ -2,7 +2,7 @@ import torch.nn as nn
 import torch
 from einops import rearrange
 from src.models.backbones.base import BaseBackbone
-from src.common.train_utils import orthogonal_init, xavier_uniform_init
+from src.common.train_utils import orthogonal_init
 
 
 class Nature(BaseBackbone):
@@ -27,8 +27,6 @@ class Nature(BaseBackbone):
         )
         if init_type == 'orthogonal':
             self.apply(orthogonal_init)
-        elif init_type == 'xavier_uniform':
-            self.apply(xavier_uniform_init)
             
     def forward(self, x):
         n, t, f, c, h, w = x.shape

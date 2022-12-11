@@ -2,7 +2,7 @@ cd ..
 cd ..
 python run_atari_pretrain.py \
     --group_name baseline \
-    --exp_name gpt_video_brw001 \
+    --exp_name gpt_video_brw001_brwl2norm \
     --config_name mixed_gpt_impala \
     --mode full \
     --debug False \
