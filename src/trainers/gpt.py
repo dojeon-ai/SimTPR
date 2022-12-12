@@ -111,8 +111,13 @@ class GPTTrainer(BaseTrainer):
                         'act_acc': act_acc.item()}
             
         else:
-            pos_idx = torch.eye(obs_p1.shape[0], device=x.device)
-            sim = F.cosine_similarity(obs_p1.unsqueeze(1), obs_t2.unsqueeze(0), dim=-1)
+            if self.cfg.loss_type == 'cons':
+                pos_idx = torch.eye(obs_p1.shape[0], device=x.device)
+                sim = F.cosine_similarity(obs_p1.unsqueeze(1), obs_t2.unsqueeze(0), dim=-1)
+            elif self.cfg.loss_type == 'cont':
+                pos_idx = torch.eye(obs_d1.shape[0], device=x.device)
+                sim = F.cosine_similarity(obs_d1.unsqueeze(1), obs_t2.unsqueeze(0), dim=-1)
+                
             pos_sim = (torch.sum(sim * pos_idx) / torch.sum(pos_idx))
             neg_sim = (torch.sum(sim * (1-pos_idx)) / torch.sum(1-pos_idx))
             pos_neg_diff = pos_sim - neg_sim
@@ -125,9 +130,9 @@ class GPTTrainer(BaseTrainer):
             log_data = {'pos_sim': pos_sim.item(),
                         'neg_sim': neg_sim.item(),
                         'pos_neg_diff': pos_neg_diff.item(),
-                        'rank_eps001': rank_eps001,
-                        'rank_eps01': rank_eps01,
-                        'rank_eps1': rank_eps1}
+                        'rank_eps001': rank_eps001.item(),
+                        'rank_eps01': rank_eps01.item(),
+                        'rank_eps1': rank_eps1.item()}
         
         return loss, log_data
 

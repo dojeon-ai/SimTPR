@@ -24,7 +24,7 @@ def run(args):
 
     # Hydra Compose
     config_path = './configs/' + config_dir 
-    hydra.core.global_hydra.GlobalHydra.instance().clear()
+    #hydra.core.global_hydra.GlobalHydra.instance().clear()
     initialize(version_base=None, config_path=config_path) 
     cfg = compose(config_name=config_name, overrides=overrides)
     
