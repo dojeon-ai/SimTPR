@@ -43,7 +43,7 @@ class CLTTrainer(BaseTrainer):
         self.max_rtg = max_rtg
         
         
-    def compute_loss(self, obs, act, rew, done, rtg):
+    def compute_loss(self, obs, act, rew, done, rtg, mode):
         ####################
         # augmentation
         n, t, f, c, h, w = obs.shape

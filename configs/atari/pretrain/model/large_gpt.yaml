@@ -1,4 +1,4 @@
 defaults:
 - backbone: large
-- head: clt_512
+- head: gpt
 - policy: identity

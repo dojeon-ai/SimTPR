@@ -28,7 +28,7 @@ class ATCTrainer(BaseTrainer):
         cfg.tau_scheduler.step_size = update_steps
         self.tau_scheduler = LinearScheduler(**cfg.tau_scheduler)
 
-    def compute_loss(self, obs, act, rew, done, rtg):
+    def compute_loss(self, obs, act, rew, done, rtg, mode):
         #################
         # forward
         n, t, f, c, h, w = obs.shape

@@ -27,7 +27,7 @@ class DTTrainer(BaseTrainer):
                          train_loader, eval_act_loader, eval_rew_loader, env,
                          logger, agent_logger, aug_func, model)  
         
-    def compute_loss(self, obs, act, rew, done, rtg):
+    def compute_loss(self, obs, act, rew, done, rtg, mode):
         ####################
         # augmentation
         n, t, f, c, h, w = obs.shape

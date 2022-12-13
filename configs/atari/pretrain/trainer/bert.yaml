@@ -1,20 +1,18 @@
 # defaults
-type: 'hicat'
+type: 'bert'
 obs_shape: None
 action_size: None
 t_step: None
 
 aug_types: [random_shift, intensity]
-mask_type: 'none'
-mask_strategy: 'agnostic'
 mask_ratio: 0.5
-patch_size: [12, 12]
+
 
 optimizer:
     type: 'adamw'
     lr: 0.0003
     weight_decay: 0.00001
-    betas: [0.9, 0.999]
+    betas: [0.9, 0.95]
     eps: 0.00015
 
 scheduler:
@@ -24,15 +22,16 @@ scheduler:
     warmup_ratio: 0.2
     gamma: 1.0
 
-tau_scheduler:
-    initial_value: 0.99
-    final_value: 0.995
-    step_size: None
     
-state_lmbda: 1.0
-demon_lmbda: 1.0
-traj_lmbda: 1.0
+dataset_type: 'video' # video, demonstration, trajectory
+obs_lmbda: 1.0
+act_lmbda: 1.0
 
+loss_type: 'cons' # consistency, contrastive
+temperature: 0.1 # temperature is used when loss_type is contrastive
+reg_lmbda: 0.01
+barlow_lmbda: 0.005     
+    
 # updates
 batch_size: None
 num_epochs: 10
@@ -45,14 +44,6 @@ eval_every: 1
 save_every: 5
 
 # zero-shot policy evaluation
-eval_policy: True
+eval_policy: False
 num_eval_trajectories: 50
-num_envs: 50
 eval_eps: 0.001
-
-rollout: 
-    type: 'beam'
-    beam_width: 4
-    horizon: 5
-    context_len: 10
-    gamma: 0.99

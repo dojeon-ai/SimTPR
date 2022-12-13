@@ -1,4 +1,4 @@
 defaults:
 - backbone: impala
-- head: hicat
+- head: barlow
 - policy: identity

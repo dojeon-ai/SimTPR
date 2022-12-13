@@ -1,17 +1,16 @@
 from .base import BaseTrainer
 from src.common.losses import ConsistencyLoss, CURLLoss, BarlowLoss
 from src.common.train_utils import LinearScheduler
+from src.common.vit_utils import get_random_1d_mask
 from einops import rearrange
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import numpy as np
-import tqdm
-import random
+import copy
 import wandb
 
-class GPTTrainer(BaseTrainer):
-    name = 'gpt'
+class BERTTrainer(BaseTrainer):
+    name = 'bert'
     def __init__(self,
                  cfg,
                  device,
@@ -26,19 +25,29 @@ class GPTTrainer(BaseTrainer):
         
         super().__init__(cfg, device, 
                          train_loader, eval_act_loader, eval_rew_loader, env,
-                         logger, agent_logger, aug_func, model)          
-        
+                         logger, agent_logger, aug_func, model)  
         
     def compute_loss(self, obs, act, rew, done, rtg, mode):
         ####################
         # augmentation
         n, t, f, c, h, w = obs.shape
+        
+        # weak augmentation to both online & target
         x = obs / 255.0
         x = rearrange(x, 'n t f c h w -> n (t f c) h w')
         x1, x2 = self.aug_func(x), self.aug_func(x)
         x = torch.cat([x1, x2], axis=0)        
         x = rearrange(x, 'n (t f c) h w -> n t f c h w', t=t, f=f)
         act = torch.cat([act, act], axis=0)
+        
+        # mask the latent
+        latent_shape = (n, t)
+        mask_ratio = self.cfg.mask_ratio
+        
+        _, obs_mask, _ = get_random_1d_mask(latent_shape, mask_ratio)
+        _, act_mask, _ = get_random_1d_mask(latent_shape, mask_ratio)
+        obs_mask = torch.cat([obs_mask, obs_mask], axis=0).to(self.device)
+        act_mask = torch.cat([act_mask, act_mask], axis=0).to(self.device)
         
         #################
         # forward
@@ -47,20 +56,16 @@ class GPTTrainer(BaseTrainer):
         y, _ = self.model.backbone(x)  
         z = self.model.head.encode_obs(y)
         
-        obs_o = z[:, :-1]
-        obs_t = z[:, 1:]
-        act = act[:, :-1]
-        
         # decode
         d_type = self.cfg.dataset_type
-        obs_d, act_d = self.model.head.decode(obs_o, act, d_type)  
+        obs_d, act_d = self.model.head.decode(z, act, obs_mask, act_mask, d_type)  
         obs_p, act_p = self.model.head.predict(obs_d, act_d) 
 
         #################
         # loss
         
         # obs loss            
-        obs_t1, obs_t2 = obs_t.chunk(2)
+        obs_t1, obs_t2 = z.chunk(2)
         obs_t1, obs_t2 = rearrange(obs_t1, 'n t d -> (n t) d'), rearrange(obs_t2, 'n t d -> (n t) d')
 
         if self.cfg.loss_type == 'cons':
@@ -69,7 +74,7 @@ class GPTTrainer(BaseTrainer):
             obs_p1, obs_p2 = rearrange(obs_p1, 'n t d -> (n t) d'), rearrange(obs_p2, 'n t d -> (n t) d')
             obs_loss = 0.5 * (obs_loss_fn(obs_p1, obs_t2.detach()) + obs_loss_fn(obs_p2, obs_t1.detach()))
             obs_loss = torch.mean(obs_loss)
-            
+        
         elif self.cfg.loss_type == 'cont':
             obs_loss_fn = CURLLoss(self.cfg.temperature) 
             obs_d1, obs_d2 = obs_d.chunk(2)
@@ -84,7 +89,7 @@ class GPTTrainer(BaseTrainer):
         t1 = F.normalize(obs_t1, dim=-1, p=2)
         t2 = F.normalize(obs_t2, dim=-1, p=2)
         reg_loss = reg_loss_fn(t1, t2)
-            
+        
         # act loss
         act_loss_fn = nn.CrossEntropyLoss(reduction='none')
         act_p = rearrange(act_p, 'n t d -> (n t) d')
@@ -102,6 +107,7 @@ class GPTTrainer(BaseTrainer):
         
         ###############
         # logs
+        
         # quantitative
         if mode == 'train':
             log_data = {'loss': loss.item(),
@@ -136,7 +142,5 @@ class GPTTrainer(BaseTrainer):
         
         return loss, log_data
 
-    
     def update(self, obs, act, rew, done, rtg):
         pass
-

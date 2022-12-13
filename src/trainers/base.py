@@ -79,7 +79,7 @@ class BaseTrainer():
             rew = batch.reward.to(self.device)
             done = batch.done.to(self.device)
             rtg = batch.rtg.to(self.device)
-            loss, train_logs = self.compute_loss(obs, act, rew, done, rtg)
+            loss, train_logs = self.compute_loss(obs, act, rew, done, rtg,'train')
 
             # backward
             self.optimizer.zero_grad()
@@ -118,7 +118,7 @@ class BaseTrainer():
                 rew = batch.reward.to(self.device)
                 done = batch.done.to(self.device)
                 rtg = batch.rtg.to(self.device)
-                loss, train_logs = self.compute_loss(obs, act, rew, done, rtg)
+                loss, train_logs = self.compute_loss(obs, act, rew, done, rtg, 'train')
                 
                 # backward
                 self.optimizer.zero_grad()
@@ -225,7 +225,7 @@ class BaseTrainer():
             rtg = batch.rtg.to(self.device)
             
             with torch.no_grad():
-                loss, log_data = self.compute_loss(obs, act, rew, done, rtg, train=False)
+                loss, log_data = self.compute_loss(obs, act, rew, done, rtg, 'eval')
             break
         
         return log_data

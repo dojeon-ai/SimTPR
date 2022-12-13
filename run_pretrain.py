@@ -78,17 +78,6 @@ def run(args):
         model_path = artifact.get_path(model_path).download()
         state_dict = torch.load(model_path, map_location=device)
         model.load_state_dict(state_dict['model_state_dict'], strict=False)
-        
-    # trainer
-    num_envs = cfg.trainer.num_envs
-    if num_envs > 1:
-        envs = []
-        for idx in range(num_envs):
-            cfg.env.seed = idx
-            env, _ = build_env(cfg.env)
-            envs.append(env)
-        env = VecEnv(num_processes = num_envs, envs = envs)
-        agent_logger = VecAgentLogger(average_len=100, num_envs= num_envs)
     
     trainer = build_trainer(cfg=cfg.trainer,
                             train_loader=train_loader,
