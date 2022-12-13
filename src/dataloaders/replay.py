@@ -118,7 +118,6 @@ class ReplayDataset(Dataset):
                     
                     # last trajectory
                     return_per_trajectory.append(G)
-                    total_return_per_trajectory += G
                     
                     print(f'num trajectories in data {len(return_per_trajectory)}')
                     print(f'average return of trajectories {np.mean(return_per_trajectory)}')        
