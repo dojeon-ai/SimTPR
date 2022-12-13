@@ -5,5 +5,7 @@ t_step: None
 in_dim: None
 proj_dim: 512
 pred_dim: 512
+proj_bn: True
+pred_bn: True
 num_layers: 2
 dropout: 0.0

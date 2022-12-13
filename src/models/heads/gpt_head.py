@@ -17,6 +17,8 @@ class GPTHead(BaseHead):
                  in_dim, 
                  proj_dim, 
                  pred_dim,
+                 proj_bn,
+                 pred_bn,
                  num_layers,
                  dropout):
         
@@ -25,10 +27,16 @@ class GPTHead(BaseHead):
         self.in_dim = in_dim
         self.proj_dim = proj_dim
         
-        self.obs_in = nn.Sequential(nn.Linear(in_dim, proj_dim, bias=False), 
-                                    nn.BatchNorm1d(proj_dim), 
-                                    nn.ReLU(), 
-                                    nn.Linear(proj_dim, proj_dim))
+        if proj_bn is True:
+            self.obs_in = nn.Sequential(nn.Linear(in_dim, proj_dim, bias=False), 
+                                        nn.BatchNorm1d(proj_dim), 
+                                        nn.ReLU(), 
+                                        nn.Linear(proj_dim, proj_dim))
+        else:
+            self.obs_in = nn.Sequential(nn.Linear(in_dim, proj_dim, bias=False), 
+                                        nn.ReLU(), 
+                                        nn.Linear(proj_dim, proj_dim))
+            
         self.act_in = nn.Embedding(action_size, proj_dim)
         
         max_t_step = t_step*2
@@ -46,6 +54,17 @@ class GPTHead(BaseHead):
                                       nn.BatchNorm1d(pred_dim), 
                                       nn.ReLU(), 
                                       nn.Linear(pred_dim, proj_dim))
+        
+        if pred_bn is True:
+            self.obs_pred = nn.Sequential(nn.Linear(proj_dim, pred_dim, bias=False), 
+                                          nn.BatchNorm1d(pred_dim), 
+                                          nn.ReLU(), 
+                                          nn.Linear(pred_dim, proj_dim))
+        else:
+            self.obs_pred = nn.Sequential(nn.Linear(proj_dim, pred_dim, bias=False), 
+                                          nn.ReLU(), 
+                                          nn.Linear(pred_dim, proj_dim))
+        
         self.act_pred = nn.Sequential(nn.Linear(proj_dim, proj_dim), 
                                       nn.ReLU(), 
                                       nn.Linear(proj_dim, action_size))
