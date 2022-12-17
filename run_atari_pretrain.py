@@ -27,7 +27,7 @@ if __name__ == '__main__':
     
     args = vars(parser.parse_args())
     seeds = np.arange(args.pop('num_seeds'))
-    games = list(atari_human_scores.keys())
+    games = list(atari_human_scores.keys())[24:]
     num_devices = args.pop('num_devices')
     num_exp_per_device = args.pop('num_exp_per_device')
     pool_size = num_devices * num_exp_per_device 
