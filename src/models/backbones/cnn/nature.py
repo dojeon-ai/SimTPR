@@ -2,7 +2,7 @@ import torch.nn as nn
 import torch
 from einops import rearrange
 from src.models.backbones.base import BaseBackbone
-from src.common.train_utils import orthogonal_init
+from src.common.train_utils import orthogonal_init, renormalize
 
 
 class Nature(BaseBackbone):
@@ -10,7 +10,8 @@ class Nature(BaseBackbone):
     def __init__(self,
                  obs_shape,
                  action_size,
-                 init_type):
+                 init_type,
+                 renormalize):
         super().__init__()
         self.obs_shape = obs_shape
         f, c, h, w = obs_shape
@@ -27,11 +28,14 @@ class Nature(BaseBackbone):
         )
         if init_type == 'orthogonal':
             self.apply(orthogonal_init)
+        self.renormalize = renormalize
             
     def forward(self, x):
         n, t, f, c, h, w = x.shape
         x = rearrange(x, 'n t f c h w -> (n t) (f c) h w')
         x = self.layers(x)
+        if self.renormalize:
+            x = renormalize(x)
         x = rearrange(x, '(n t) d -> n t d', t=t)
         info = {}
             

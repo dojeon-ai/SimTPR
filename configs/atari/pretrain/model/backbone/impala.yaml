@@ -8,3 +8,4 @@ expansion_ratio: 2
 blocks_per_group: 3
 norm_type: 'bn'
 init_type: None
+renormalize: False

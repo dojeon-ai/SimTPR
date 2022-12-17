@@ -9,7 +9,8 @@ class DENature(BaseBackbone):
     def __init__(self,
                  obs_shape,
                  action_size,
-                 init_type):
+                 init_type,
+                 renormalize):
         super().__init__()
         self.obs_shape = obs_shape
         f, c, h, w = obs_shape
@@ -24,11 +25,14 @@ class DENature(BaseBackbone):
         )
         if init_type == 'orthogonal':
             self.apply(orthogonal_init)
+        self.renormalize = renormalize
 
     def forward(self, x):
         n, t, f, c, h, w = x.shape
         x = rearrange(x, 'n t f c h w -> (n t) (f c) h w')
         x = self.layers(x)
+        if self.renormalize:
+            x = renormalize(x)
         x = rearrange(x, '(n t) d -> n t d', t=t)
         info = {}
             

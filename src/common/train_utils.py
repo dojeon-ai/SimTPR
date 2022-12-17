@@ -55,6 +55,16 @@ def transformer_init(m):
     
     return m
 
+def renormalize(tensor, first_dim=1):
+    # [params] first_dim: starting dimension to normalize the embedding
+    eps = 1e-6
+    flat_tensor = tensor.view(*tensor.shape[:first_dim], -1)
+    _max = torch.max(flat_tensor, first_dim, keepdim=True).values
+    _min = torch.min(flat_tensor, first_dim, keepdim=True).values
+    flat_tensor = (flat_tensor - _min)/(_max - _min + eps)
+
+    return flat_tensor.view(*tensor.shape)
+
 def init_normalization(channels, norm_type="bn", one_d=False):
     assert norm_type in ["bn", "bn_nt", "ln", "ln_nt", None]
     if norm_type == "bn":

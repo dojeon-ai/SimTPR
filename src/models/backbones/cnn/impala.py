@@ -3,7 +3,7 @@ import torch
 import numpy as np
 from einops import rearrange
 from src.models.backbones.base import BaseBackbone
-from src.common.train_utils import orthogonal_init, init_normalization
+from src.common.train_utils import orthogonal_init, init_normalization, renormalize
 
 
 def fixup_init(layer, num_layers):
@@ -83,7 +83,8 @@ class Impala(BaseBackbone):
                  expansion_ratio,
                  blocks_per_group,
                  norm_type,
-                 init_type):
+                 init_type,
+                 renormalize):
         super().__init__()
         self.obs_shape = obs_shape
         f, c, h, w = obs_shape
@@ -114,11 +115,14 @@ class Impala(BaseBackbone):
         self.layers = nn.Sequential(*layers)        
         if init_type == 'orthogonal':
             self.apply(orthogonal_init)
+        self.renormalize = renormalize
 
     def forward(self, x):
         n, t, f, c, h, w = x.shape
         x = rearrange(x, 'n t f c h w -> (n t) (f c) h w')
         x = self.layers(x)
+        if self.renormalize:
+            x = renormalize(x)
         x = rearrange(x, '(n t) d -> n t d', t=t)
         info = {}
             
