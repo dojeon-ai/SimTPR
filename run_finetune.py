@@ -64,8 +64,19 @@ def run(args):
         artifact = wandb.run.use_artifact(str(p_cfg.artifact_name))
         model_path = p_cfg.env + '/' + p_cfg.seed + '/' + p_cfg.name
         model_path = artifact.get_path(model_path).download()
-        state_dict = torch.load(model_path, map_location=device)
-        model.load_state_dict(state_dict['model_state_dict'], strict=False)
+        state_dict = torch.load(model_path, map_location=device)['model_state_dict']
+        
+        _state_dict = {}
+        for name, param in state_dict.items():
+            if 'backbone' in name:
+                _state_dict[name] = param
+            
+            #if name == 'head.obs_in.0.weight':
+            #    _state_dict['policy.fc_v.0.weight_mu'] = param
+            #    _state_dict['policy.fc_adv.0.weight_mu'] = param
+
+        model.load_state_dict(_state_dict, strict=False)
+        
         
     # agent
     agent = build_agent(cfg=cfg.agent,

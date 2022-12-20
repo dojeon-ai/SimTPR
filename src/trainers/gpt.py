@@ -47,6 +47,7 @@ class GPTTrainer(BaseTrainer):
         y, _ = self.model.backbone(x)  
         z = self.model.head.encode_obs(y)
         
+        # z: n, t, d
         obs_o = z[:, :-1]
         obs_t = z[:, 1:]
         act = act[:, :-1]
