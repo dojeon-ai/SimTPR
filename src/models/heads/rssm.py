@@ -13,15 +13,12 @@ class RSSM(BaseHead):
                  hid_dim,
                  deter,
                  state_dim,
-                 out_dim,
                  min_std=0.1):
         super(RSSM, self).__init__()
         
         self._hidden = hid_dim
         self._deter = deter
         self._min_std=min_std
-        
-        self.projector = nn.Linear(in_dim, hid_dim)
         
         # prior
         self.fc_state_embed = nn.Linear(state_dim, hid_dim)
@@ -33,15 +30,9 @@ class RSSM(BaseHead):
         self.fc_rnn_hidden_embedded_obs = nn.Linear(deter + hid_dim, hid_dim)
         self.fc_posterior_dist = nn.Linear(hid_dim, 2 * state_dim)
         
-        
         # observation model
-        self.obs_model =  ObsModel()
+        self.obs_model =  ObsModel(in_dim, state_dim, deter)
         
-    def project(self, x):
-        x = self.projector(x)
-        # use ELU (APV) -> ReLU activation
-        x = nn.ReLU(x)
-        return x
         
     def prior(self, rnn_hidden, state):
         """
@@ -91,7 +82,9 @@ class RSSM(BaseHead):
              'rnn_hidden': rnn_hidden}
         
         return x, info
-
+    
+    # def decode(self, posterior, rnn_hidden):
+    #     return self.obs_model(posterior, rnn_hidden)        
 
 
 
@@ -154,6 +147,7 @@ class ResidualBlock(nn.Module):
         out = self.layers(x)
         return out + x
     
+    
 class TransposeImpalaBlock(nn.Module):
     def __init__(self,
                  in_channels,
@@ -189,6 +183,15 @@ class ObsModel(nn.Module):
                  init_type):
         super().__init__()
 
+        '''
+        reconstructed image \hat{o}_t from Image Decoder p(\hat{o}_t | h_t, z_t)
+        
+        z_t from posterior p(z_t | h_t, o_t)
+        h_t: deterministic state [Recurrent model in APV (Appendix B.1)] (RNN hidden state)
+            h_t = f(h_t-1, z_t-1)
+            
+        '''
+    
         self.fc = nn.Linear(state_dim + rnn_hidden_dim, hid_dim)
         self.layers = nn.Sequential(
             TransposeImpalaBlock(in_channels=64, out_channels=64, expansion_ratio=expansion_ratio, stride=2),
@@ -200,7 +203,8 @@ class ObsModel(nn.Module):
         if init_type == 'orthogonal':
             self.apply(orthogonal_init)
 
-    def forward(self, x):
+    def forward(self, state, hidden):
+        x = torch.cat([state, hidden], dim = -1)
         x = self.fc(x)
         x = x.reshape(x.shape[0], 64, 7, 7)
         x = self.layers(x)
