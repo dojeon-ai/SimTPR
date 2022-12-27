@@ -57,8 +57,10 @@ class RAINBOW(BaseAgent):
     def compute_loss(self):
         self.model.train()
         self.target_model.train()
-        if self.cfg.finetune_type == 'freeze':
+        if self.cfg.train_backbone_mode =='eval':
             self.model.backbone.eval()
+            
+        if self.cfg.train_target_backbone_mode == 'eval':
             self.target_model.backbone.eval()
         
         # get samples from buffer

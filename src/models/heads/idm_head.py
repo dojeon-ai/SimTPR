@@ -26,6 +26,5 @@ class IDMHead(BaseHead):
     
     def forward(self, x):
         info = {}
-        x = self.predict(x)
 
         return x, info

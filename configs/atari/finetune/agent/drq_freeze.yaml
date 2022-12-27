@@ -17,6 +17,10 @@ buffer:
         step_size: 196000  # (num_timesteps - min_buffer_size) * optimize_per_step
 
 finetune_type: 'freeze'
+eval_backbone_mode: 'eval'
+train_backbone_mode: 'eval'
+train_target_backbone_mode: 'eval'
+
 optimizer:
     type: 'adam'
     lr: 0.00003

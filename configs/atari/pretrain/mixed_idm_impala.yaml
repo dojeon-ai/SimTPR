@@ -1,0 +1,15 @@
+project_name: 'atari_pretrain'
+entity: 'draftrec'
+group_name: 'test'
+exp_name: 'idm_impala'
+device: cuda:0
+debug: True
+seed: 0
+
+defaults:
+- _self_
+- dataloader: lightweight_gpu_n320_t2
+- env: atari
+- trainer: idm
+- model: impala_idm
+- pretrain: scratch

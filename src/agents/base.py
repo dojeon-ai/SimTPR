@@ -65,7 +65,7 @@ class BaseAgent(metaclass=ABCMeta):
         for t in tqdm.tqdm(range(1, self.cfg.num_timesteps+1)):
             # forward
             self.model.train()        
-            if self.cfg.finetune_type == 'freeze':
+            if self.cfg.eval_backbone_mode == 'eval':
                 self.model.backbone.eval()
             
             obs_tensor = self.buffer.encode_obs(obs, prediction=True)
