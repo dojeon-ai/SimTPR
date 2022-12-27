@@ -24,7 +24,7 @@ scheduler:
     warmup_ratio: 0.2
     gamma: 1.0
     
-dataset_type: 'video' # video, demonstration, trajectory
+dataset_type: 'video' # video, demonstration
 obs_lmbda: 1.0
 act_lmbda: 1.0
 
