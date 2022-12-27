@@ -8,6 +8,7 @@ from .bert_head import BERTHead
 from .simclr_head import SimCLRHead
 from .gpt_head import GPTHead
 from .dt_head import DTHead
+from .idm_head import IDMHead
 from .clt_head import CLTHead
 from .curl_head import CURLHead
 from .mlr_head import MLRHead
@@ -20,6 +21,7 @@ __all__ = [
     'BCHead', 
     'BCQHead',
     'SimCLRHead', 
+    'IDMHead', 
     'CLTHead', 
     'CURLHead', 
     'MLRHead', 
