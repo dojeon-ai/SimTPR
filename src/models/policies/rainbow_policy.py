@@ -101,6 +101,14 @@ class RainbowPolicy(BasePolicy):
                 module_name = module.__class__.__name__
                 if module_name == 'NoisyLinear':
                     module.reset_noise()
+                    
+    def reset_parameter(self):
+        for name, branch in self.named_children():
+            modules = [m for m in branch.children()]
+            for module in modules:
+                module_name = module.__class__.__name__
+                if module_name == 'NoisyLinear':
+                    module.reset_parameters()
 
     def get_num_atoms(self):
         return self.num_atoms

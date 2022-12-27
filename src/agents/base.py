@@ -60,6 +60,9 @@ class BaseAgent(metaclass=ABCMeta):
     def update(self):
         pass
     
+    def reset(self):
+        pass
+    
     def train(self):
         obs = self.train_env.reset()
         for t in tqdm.tqdm(range(1, self.cfg.num_timesteps+1)):
@@ -88,6 +91,9 @@ class BaseAgent(metaclass=ABCMeta):
                 
             if (t >= self.cfg.min_buffer_size) & (t % self.cfg.update_freq == 0):
                 self.update()
+                
+            if (t >= self.cfg.min_buffer_size) & (t % self.cfg.reset_freq == 0):
+                self.reset()
 
             # evaluate
             if t % self.cfg.eval_every == 0:

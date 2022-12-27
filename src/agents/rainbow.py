@@ -53,6 +53,11 @@ class RAINBOW(BaseAgent):
     
     def update(self):
         self.target_model.load_state_dict(self.model.state_dict())
+        
+    def reset(self):
+        self.model.policy.reset_parameter()
+        self.model.policy.reset_noise()
+        self.target_model.load_state_dict(self.model.state_dict())
 
     def compute_loss(self):
         self.model.train()
