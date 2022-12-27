@@ -12,6 +12,8 @@ from .clt_head import CLTHead
 from .curl_head import CURLHead
 from .mlr_head import MLRHead
 from .identity_head import IdentityHead
+from .rssm_head import RSSMHead
+from .vae_head import VAEHead
 
 __all__ = [
     'BaseHead',
@@ -24,5 +26,7 @@ __all__ = [
     'CURLHead', 
     'MLRHead', 
     'IdentityHead', 
-    'ATCHead'
+    'ATCHead',
+    'RSSMHead',
+    'VAEHead'
 ]
