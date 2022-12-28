@@ -41,7 +41,7 @@ class RSSMHead(BaseHead):
         self.fc_posterior_dist = nn.Linear(hid_dim, 2 * state_dim)
         
         # observation model
-        self.obs_model =  ObsModel(in_dim, state_dim, deter, None)
+        self.obs_model =  ObsModel(in_dim, state_dim, deter, 'bn')
         
         
     def prior(self, rnn_hidden, state):
@@ -132,7 +132,15 @@ class RSSMHead(BaseHead):
 
         recon_loss = 0.5 * mse_loss(recon_observations[1:], obs[1:], reduction='none').mean()
         
-        return recon_loss
+        obs = rearrange(obs, 't n c h w -> n t c h w')
+        obs = (obs / 255.0)[0, 1:, -1].unsqueeze(1)
+        recon = rearrange(recon_observations, 't n c h w -> n t c h w')
+        recon = recon.to(float)
+        recon = torch.where(recon >= 1.0, 1.0, recon)
+        recon = torch.where(recon < 0.0, 0.0, recon)[0, 1:, -1].unsqueeze(1)
+
+
+        return recon_loss, recon, obs
 
 
 
@@ -307,20 +315,20 @@ class ObsModel(nn.Module):
         self.fc = nn.Linear(state_dim + rnn_hidden_dim, hid_dim)
 
         for i in range(len(strides)):
+            for _ in range(1, blocks_per_group):
+                layers.append(ResidualBlock(in_channels=channels[i], 
+                                            out_channels=channels[i], 
+                                            expansion_ratio=expansion_ratio,
+                                            stride=1,
+                                            norm_type=norm_type,
+                                            num_layers=num_layers))
+                                            
             layers.append(TransposeResidualBlock(in_channels=channels[i], 
                                         out_channels=channels[i+1], 
                                         expansion_ratio=expansion_ratio,
                                         stride=strides[i],
                                         norm_type=norm_type,
-                                        num_layers=num_layers))
-            
-            for _ in range(1, blocks_per_group):
-                layers.append(ResidualBlock(in_channels=channels[i+1], 
-                                            out_channels=channels[i+1], 
-                                            expansion_ratio=expansion_ratio,
-                                            stride=1,
-                                            norm_type=norm_type,
-                                            num_layers=num_layers))        
+                                        num_layers=num_layers)) 
      
         self.layers = nn.Sequential(*layers)        
 

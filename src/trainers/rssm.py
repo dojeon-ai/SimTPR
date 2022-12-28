@@ -3,6 +3,7 @@ from src.common.losses import BarlowLoss
 import torch
 import torch.nn.functional as F
 from einops import rearrange
+import wandb
 
 
 class RSSMTrainer(BaseTrainer):
@@ -38,11 +39,14 @@ class RSSMTrainer(BaseTrainer):
 
         states = rearrange(states, 't n d -> (t n) d')
         rnn_hiddens = rearrange(rnn_hiddens, 't n d -> (t n) d')
-        recon_loss = self.model.head.recon_loss(obs / 255.0, states, rnn_hiddens)
+        recon_loss, recon_observations, obs = self.model.head.recon_loss(obs / 255.0, states, rnn_hiddens)
 
         loss = kl_loss + recon_loss
         
         log_data = {'loss': loss.item(),
-                    'obs_loss': recon_loss.item()}
+                    'obs_loss': recon_loss.item(),
+                    'recon': wandb.Image(recon_observations),
+                    'obs': wandb.Image(obs)
+                    }
         
         return loss, log_data

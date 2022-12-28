@@ -28,7 +28,7 @@ class VAEHead(BaseHead):
 
         # reconstruction
         self.decoder_input = nn.Linear(hid_dim, in_dim)
-        self.decode_latent = ObsModel(None)
+        self.decode_latent = ObsModel('bn')
 
         
     def encode(self, x):
@@ -250,20 +250,20 @@ class ObsModel(nn.Module):
         layers = []
         num_layers = len(channels) * 3
         for i in range(len(strides)):
+            for _ in range(1, blocks_per_group):
+                layers.append(ResidualBlock(in_channels=channels[i], 
+                                            out_channels=channels[i], 
+                                            expansion_ratio=expansion_ratio,
+                                            stride=1,
+                                            norm_type=norm_type,
+                                            num_layers=num_layers))
+
             layers.append(TransposeResidualBlock(in_channels=channels[i], 
                                         out_channels=channels[i+1], 
                                         expansion_ratio=expansion_ratio,
                                         stride=strides[i],
                                         norm_type=norm_type,
-                                        num_layers=num_layers))
-            
-            for _ in range(1, blocks_per_group):
-                layers.append(ResidualBlock(in_channels=channels[i+1], 
-                                            out_channels=channels[i+1], 
-                                            expansion_ratio=expansion_ratio,
-                                            stride=1,
-                                            norm_type=norm_type,
-                                            num_layers=num_layers))        
+                                        num_layers=num_layers))      
      
         self.layers = nn.Sequential(*layers)        
 

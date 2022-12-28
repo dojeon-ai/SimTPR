@@ -3,6 +3,7 @@ from src.common.losses import BarlowLoss
 import torch
 import torch.nn.functional as F
 from einops import rearrange
+import wandb
 
 
 class VAETrainer(BaseTrainer):
@@ -50,5 +51,16 @@ class VAETrainer(BaseTrainer):
         loss = result['loss']
 
         log_data = {x:y if x !='loss' else y.detach() for x, y in result.items()}
+
+        # WANDB log
+        obs = rearrange(obs / 255.0, 'n t f c h w -> n t (f c) h w')[0, :, -1].unsqueeze(1)
+        recon = rearrange(recon, 'n t f c h w -> n t (f c) h w')[0, :, -1].unsqueeze(1)
+        recon = recon.to(float)
+        recon = torch.where(recon >= 1.0, 1.0, recon)
+        recon = torch.where(recon < 0.0, 0.0, recon)
+
+        log_data['recon'] = wandb.Image(recon)
+
+        log_data['obs'] = wandb.Image(obs)
 
         return loss, log_data
