@@ -89,12 +89,6 @@ class BaseAgent(metaclass=ABCMeta):
                     self.optimizer.step()
                     self.logger.update_log(mode='train', **log_data)
                 
-            if (t >= self.cfg.min_buffer_size) & (t % self.cfg.update_freq == 0):
-                self.update()
-                
-            if (t >= self.cfg.min_buffer_size) & (t % self.cfg.reset_freq == 0):
-                self.reset()
-
             # evaluate
             if t % self.cfg.eval_every == 0:
                 self.evaluate()
@@ -104,7 +98,15 @@ class BaseAgent(metaclass=ABCMeta):
             if t % self.cfg.log_every == 0:
                 self.logger.write_log(mode='train')
 
-            # reset when trajectory is done
+            # update
+            if (t >= self.cfg.min_buffer_size) & (t % self.cfg.update_freq == 0):
+                self.update()
+                
+            # reset model
+            if (t >= self.cfg.min_buffer_size) & (t % self.cfg.reset_freq == 0):
+                self.reset()
+                
+            # reset environment when trajectory is done
             if info.traj_done:
                 obs = self.train_env.reset()
             else:
