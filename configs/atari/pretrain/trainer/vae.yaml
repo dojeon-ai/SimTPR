@@ -8,7 +8,7 @@ aug_types: [random_shift, intensity]
 
 optimizer:
     type: 'adamw'
-    lr: 0.0003
+    lr: 0.00003
     weight_decay: 0.0000001 #1e-6
     betas: [0.9, 0.999]
     eps: 0.00015
