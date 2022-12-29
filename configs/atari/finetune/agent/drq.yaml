@@ -42,6 +42,7 @@ batch_size: 32
 optimize_freq: 1       # loss optimization frequency 
 optimize_per_step: 2   # optimization step per frequency
 update_freq: 1         # target update
+tau: 0.0
 reset_freq: 100000000  # inf
 clip_grad_norm: 10
 min_buffer_size: 2000
