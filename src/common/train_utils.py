@@ -69,15 +69,15 @@ def init_normalization(channels, norm_type="bn", one_d=False):
     assert norm_type in ["bn", "bn_nt", "ln", "ln_nt", None]
     if norm_type == "bn":
         if one_d:
-            return nn.BatchNorm1d(channels, affine=True)
+            return nn.BatchNorm1d(channels, affine=True, momentum=0.01)
         else:
-            return nn.BatchNorm2d(channels, affine=True)
+            return nn.BatchNorm2d(channels, affine=True, momentum=0.01)
         
     elif norm_type == "bn_nt":
         if one_d:
-            return nn.BatchNorm1d(channels, affine=False)
+            return nn.BatchNorm1d(channels, affine=False, momentum=0.01)
         else:
-            return nn.BatchNorm2d(channels, affine=False)
+            return nn.BatchNorm2d(channels, affine=False, momentum=0.01)
         
     elif norm_type == "ln":
         if one_d:

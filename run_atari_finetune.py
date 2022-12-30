@@ -30,7 +30,7 @@ if __name__ == '__main__':
     num_devices = args.pop('num_devices')
     num_exp_per_device = args.pop('num_exp_per_device')
     pool_size = num_devices * num_exp_per_device 
-    
+        
     # mode
     mode = args.pop('mode')
     if mode == 'test':
