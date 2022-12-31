@@ -32,7 +32,7 @@ class RSSMHead(BaseHead):
         
         # prior
         self.fc_state_embed = nn.Linear(state_dim, hid_dim)
-        self.rssm = GRUCell(hid_dim, deter, norm=True)
+        self.rssm = nn.GRUCell(hid_dim, deter) #GRUCell(hid_dim, deter, norm=True)
         self.fc_rssm_hidden = nn.Linear(deter, hid_dim)
         self.fc_prior_dist = nn.Linear(hid_dim, 2 * state_dim)
         
@@ -52,13 +52,15 @@ class RSSMHead(BaseHead):
         """
         # use ELU (APV)
         # compute deterministic state h_t [Recurrent model in APV (Appendix B.1)]
-        hidden = nn.ELU()(self.fc_state_embed(state))
+        #hidden = nn.ELU()(self.fc_state_embed(state))
+        hidden = nn.ReLU()(self.fc_state_embed(state))
         rnn_hidden = self.rssm(hidden, rnn_hidden)
         
         # compute prior using h_t => p(\hat{z}_t | h_t)
         # Transition predictor in APV (Appendix B.1)
         x = self.fc_rssm_hidden(rnn_hidden)
-        x = nn.ELU()(x)
+        #x = nn.ELU()(x)
+        x = nn.ReLU()(x)
         mu, stddev = self.fc_prior_dist(x).chunk(2, dim = -1)
         stddev = nn.Softplus()(stddev) + self._min_std
         
@@ -72,9 +74,12 @@ class RSSMHead(BaseHead):
         # Use deterministic state h_t and image observations o_t to compute posterior stochastic states z_t
         # Representation model in APV (Appendix B.1)
         
-        hidden = nn.ELU()(self.fc_rnn_hidden_embedded_obs(
-            torch.cat([rnn_hidden, embedded_obs], dim=1)))
-        
+        # hidden = nn.ELU()(self.fc_rnn_hidden_embedded_obs(
+        #     torch.cat([rnn_hidden, embedded_obs], dim=-1)))
+
+        hidden = nn.ReLU()(self.fc_rnn_hidden_embedded_obs(
+            torch.cat([rnn_hidden, embedded_obs], dim=-1)))
+
         mu, stddev = self.fc_posterior_dist(hidden).chunk(2, dim=-1)
         stddev = torch.nn.Softplus()(stddev) + self._min_std
         return Normal(mu, stddev)
@@ -104,20 +109,24 @@ class RSSMHead(BaseHead):
         # compute state and rnn hidden sequences and kl loss
         kl_loss = 0
         for l in range(t-1):
+        #for l in range(t):
             next_state_prior, rnn_hidden = self.prior(rnn_hidden, state)
+            #next_state_posterior = self.posterior(rnn_hidden, x[l])
             next_state_posterior = self.posterior(rnn_hidden, x[l+1])
 
             state = next_state_posterior.rsample()
+            
             states[l+1] = state
             rnn_hiddens[l+1] = rnn_hidden
+            #states[l] = state
+            #rnn_hiddens[l] = rnn_hidden
 
             # APV => weighted sum of kld both sides
 
-            kl_loss += kl_divergence(next_state_posterior, next_state_prior).sum(dim=1).clamp(min=0).mean()
-
+            kl_loss += kl_divergence(next_state_posterior, next_state_prior).sum(dim=-1).clamp(min=0).mean()
 
         kl_loss /= (t - 1)
-
+        #kl_loss /= t
 
         return kl_loss, states, rnn_hiddens
     
@@ -125,19 +134,22 @@ class RSSMHead(BaseHead):
     def recon_loss(self, obs, states, rnn_hiddens):
         n, t, f, c, h, w = obs.shape
 
-        obs = rearrange(obs, 'n t f c h w -> t n (f c) h w')
+        obs = rearrange(obs, 'n t f c h w -> n t (f c) h w')
         # states, rnn_hiddens should be reshaped in trainer 
         # recon from time step 1 
-        recon_observations = rearrange(self.obs_model(states, rnn_hiddens), '(n t) c h w -> t n c h w', n=n, t=t)
 
-        recon_loss = 0.5 * mse_loss(recon_observations[1:], obs[1:], reduction='none').mean()
+        recon = rearrange(self.obs_model(states, rnn_hiddens), '(n t) c h w -> n t c h w', n=n, t=t)
         
-        obs = rearrange(obs, 't n c h w -> n t c h w')
-        obs = (obs / 255.0)[0, 1:, -1].unsqueeze(1)
-        recon = rearrange(recon_observations, 't n c h w -> n t c h w')
+        #recon_loss = mse_loss(recon, obs, reduction='none').mean([0, 1, 2]).sum()
+        recon_loss = mse_loss(recon[:, 1:], obs[:, 1:], reduction='none').mean([0, 1, 2]).sum()
+
+        obs = obs[0, 1:, -1].unsqueeze(1)
+        #obs = obs[0, :, -1].unsqueeze(1)
         recon = recon.to(float)
         recon = torch.where(recon >= 1.0, 1.0, recon)
         recon = torch.where(recon < 0.0, 0.0, recon)[0, 1:, -1].unsqueeze(1)
+        #recon = torch.where(recon < 0.0, 0.0, recon)[0, :, -1].unsqueeze(1)
+        
 
 
         return recon_loss, recon, obs
@@ -153,15 +165,15 @@ class GRUCell(nn.Module):
         self._norm = norm
         self._update_bias = update_bias
         self._layer = nn.Linear(input_size + self._size, 3 * self._size, True)
-        if norm:
-            self._norm = nn.LayerNorm(3 * self._size)
+        # if norm:
+        #     self._norm = nn.LayerNorm(3 * self._size)
         
     
     def forward(self, inputs, state):
         # return previous layer output, prev hidden state
         parts = self._layer(torch.cat([inputs, state], dim = -1))
-        if self._norm:
-            parts =  self._norm(parts)
+        # if self._norm:
+        #     parts =  self._norm(parts)
         reset, cand, update = torch.chunk(parts, 3, -1)
         reset = nn.Sigmoid()(reset)
         cand = nn.Tanh()(reset * cand)
@@ -315,20 +327,21 @@ class ObsModel(nn.Module):
         self.fc = nn.Linear(state_dim + rnn_hidden_dim, hid_dim)
 
         for i in range(len(strides)):
-            for _ in range(1, blocks_per_group):
-                layers.append(ResidualBlock(in_channels=channels[i], 
-                                            out_channels=channels[i], 
-                                            expansion_ratio=expansion_ratio,
-                                            stride=1,
-                                            norm_type=norm_type,
-                                            num_layers=num_layers))
-                                            
             layers.append(TransposeResidualBlock(in_channels=channels[i], 
                                         out_channels=channels[i+1], 
                                         expansion_ratio=expansion_ratio,
                                         stride=strides[i],
                                         norm_type=norm_type,
                                         num_layers=num_layers)) 
+            for _ in range(1, blocks_per_group):
+                layers.append(ResidualBlock(in_channels=channels[i+1], 
+                                            out_channels=channels[i+1], 
+                                            expansion_ratio=expansion_ratio,
+                                            stride=1,
+                                            norm_type=norm_type,
+                                            num_layers=num_layers))
+                                            
+            
      
         self.layers = nn.Sequential(*layers)        
 

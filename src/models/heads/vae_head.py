@@ -17,17 +17,17 @@ class VAEHead(BaseHead):
     name = 'vae'
     def __init__(self, 
                  in_dim,
-                 hid_dim):
+                 state_dim):
         super().__init__()
-        self.hid_dim = hid_dim
+        self.state_dim = state_dim
 
         # posterior
         # weight init scaling issue?
-        self.fc_mu = nn.Linear(in_dim, hid_dim)
-        self.fc_var = nn.Linear(in_dim, hid_dim)
+        self.fc_mu = nn.Linear(in_dim, state_dim)
+        self.fc_var = nn.Linear(in_dim, state_dim)
 
         # reconstruction
-        self.decoder_input = nn.Linear(hid_dim, in_dim)
+        self.decoder_input = nn.Linear(state_dim, in_dim)
         self.decode_latent = ObsModel('bn')
 
         
@@ -87,12 +87,12 @@ class VAEHead(BaseHead):
         mu = mu
         log_var = log_var
 
-        recons_loss = mse_loss(recons, input_image)
+        recons_loss = mse_loss(recons, input_image, reduction='none').mean([0, 1, 2]).sum()
 
-        kld_loss = torch.mean(-0.5 * torch.sum(1 + log_var - mu ** 2 - log_var.exp(), dim = -1))
+        kld_loss = 0.002 * torch.mean(-0.5 * torch.sum(1 + log_var - mu ** 2 - log_var.exp(), dim = -1))
 
         loss = recons_loss +  kld_loss
-        return {'loss': loss, 'Reconstruction_Loss':recons_loss.detach(), 'KLD':-kld_loss.detach()}
+        return {'loss': loss, 'Reconstruction_Loss':recons_loss.detach(), 'KLD':kld_loss.detach()}
 
     def sample(self,
                num_samples:int,
@@ -105,7 +105,7 @@ class VAEHead(BaseHead):
         :return: (Tensor)
         """
         z = torch.randn(num_samples,
-                        self.hid_dim)
+                        self.state_dim)
 
         z = z.to(current_device)
 
@@ -250,20 +250,22 @@ class ObsModel(nn.Module):
         layers = []
         num_layers = len(channels) * 3
         for i in range(len(strides)):
-            for _ in range(1, blocks_per_group):
-                layers.append(ResidualBlock(in_channels=channels[i], 
-                                            out_channels=channels[i], 
-                                            expansion_ratio=expansion_ratio,
-                                            stride=1,
-                                            norm_type=norm_type,
-                                            num_layers=num_layers))
-
             layers.append(TransposeResidualBlock(in_channels=channels[i], 
                                         out_channels=channels[i+1], 
                                         expansion_ratio=expansion_ratio,
                                         stride=strides[i],
                                         norm_type=norm_type,
-                                        num_layers=num_layers))      
+                                        num_layers=num_layers))
+
+            for _ in range(1, blocks_per_group):
+                layers.append(ResidualBlock(in_channels=channels[i+1], 
+                                            out_channels=channels[i+1], 
+                                            expansion_ratio=expansion_ratio,
+                                            stride=1,
+                                            norm_type=norm_type,
+                                            num_layers=num_layers))
+
+               
      
         self.layers = nn.Sequential(*layers)        
 

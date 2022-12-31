@@ -2,6 +2,6 @@ type: rssm
 in_dim: None
 hid_dim: 512
 deter: 512
-state_dim: 32
+state_dim: 128
 min_std: 0.1
 balance: 0.8

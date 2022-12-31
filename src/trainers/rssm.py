@@ -37,14 +37,15 @@ class RSSMTrainer(BaseTrainer):
 
         kl_loss, states, rnn_hiddens = self.model.head.kl_loss(y)
 
-        states = rearrange(states, 't n d -> (t n) d')
-        rnn_hiddens = rearrange(rnn_hiddens, 't n d -> (t n) d')
+        states = rearrange(states, 't n d -> (n t) d')
+        rnn_hiddens = rearrange(rnn_hiddens, 't n d -> (n t) d')
         recon_loss, recon_observations, obs = self.model.head.recon_loss(obs / 255.0, states, rnn_hiddens)
 
-        loss = kl_loss + recon_loss
+        loss = recon_loss +  0.025 * kl_loss
         
         log_data = {'loss': loss.item(),
-                    'obs_loss': recon_loss.item(),
+                    'Reconstruction_Loss': recon_loss.item(),
+                    'KLD': kl_loss.item(),
                     'recon': wandb.Image(recon_observations),
                     'obs': wandb.Image(obs)
                     }

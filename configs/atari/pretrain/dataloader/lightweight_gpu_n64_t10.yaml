@@ -4,7 +4,7 @@ data_type: 'atari'
 #tmp_data_path: '/home/nas3_userK/hojoonlee/projects/video_rl/data/atari'
 data_path: /home/nas4_user/koanholee/code/video_new/video_rl/data/atari
 tmp_data_path: /home/nas4_user/koanholee/code/video_new/video_rl/data/atari
-game: 'Assault' # requires camel case
+game: 'Boxing' # requires camel case
 dataset_on_gpu: True
 dataset_on_disk: False
 minimal_action_set: True
