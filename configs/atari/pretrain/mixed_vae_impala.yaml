@@ -1,0 +1,15 @@
+project_name: 'atari_pretrain'
+entity: 'draftrec'
+group_name: 'test'
+exp_name: 'vae_impala_lr3e_4'
+device: cuda:0
+debug: False
+seed: 0
+
+defaults:
+- _self_
+- dataloader: lightweight_gpu_n64_t10
+- env: atari
+- trainer: vae
+- model: impala_vae
+- pretrain: scratch

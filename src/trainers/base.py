@@ -276,7 +276,8 @@ class BaseTrainer():
 
         # logistic regression
         # import error: [import cyanure.estimators] in cyanure.__init__
-        classifier = cy.estimators.Classifier(
+        from cyanure.estimators import Classifier
+        classifier = Classifier(
             loss="logistic",
             penalty="l2",
             max_iter=300,

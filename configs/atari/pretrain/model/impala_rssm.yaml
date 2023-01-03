@@ -1,0 +1,4 @@
+defaults:
+- backbone: impala
+- head: rssm
+- policy: identity
