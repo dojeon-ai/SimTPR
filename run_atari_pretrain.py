@@ -61,7 +61,7 @@ if __name__ == '__main__':
     # maxtasksperchild=1 -> no.of workers = no.of experiements
     # maxtasksperchild=None -> no.of workers = pool size
     # https://docs.python.org/3.5/library/multiprocessing.html#contexts-and-start-methods
-    mp.set_start_method('spawn') 
+    # mp.set_start_method('spawn') 
     def chunks(lst, n):
         """Yield successive n-sized chunks from lst."""
         for i in range(0, len(lst), n):
