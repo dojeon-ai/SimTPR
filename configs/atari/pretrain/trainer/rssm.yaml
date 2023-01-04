@@ -24,7 +24,7 @@ scheduler:
 batch_size: None
 num_epochs: 10
 clip_grad_norm: 1
-barlow_lmbda: 0.05
+kl_lmbda: 0.025
 
 # logging
 base_metric: 'act_f1'

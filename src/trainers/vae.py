@@ -1,7 +1,7 @@
 from .base import BaseTrainer
-from src.common.losses import BarlowLoss
 import torch
 import torch.nn.functional as F
+from torch.nn.functional import mse_loss
 from einops import rearrange
 import wandb
 
@@ -34,33 +34,37 @@ class VAETrainer(BaseTrainer):
         x = self.aug_func(x)        
         x = rearrange(x, 'n (t f c) h w -> n t f c h w', t=t, f=f)
 
-        # encoder
-        # output: n t d
+        # encoder: (n, t, f, c, h, w) -> (n, t, d)
         y, _ = self.model.backbone(x)
 
-        # vae
-        # mu, log_var: n t hid_dim
+        # mu, log_var: (n t hid_dim)
         mu, log_var = self.model.head.encode(y)
         z = self.model.head.reparameterize(mu, log_var)
         recon = self.model.head.decode(z)
-
         recon = rearrange(recon, '(n t) (f c) h w -> n t f c h w', n=n, t=t, f=f, c=c)
 
-        result = self.model.head.loss_function(recon, obs / 255.0, mu, log_var)
+        # compute loss
+        obs_target = obs / 255.0
+        recon_loss = mse_loss(recon, obs_target, reduction='none').mean([0, 1, 2]).sum()
+        kl_loss = torch.mean(-0.5 * torch.sum(1 + log_var - mu ** 2 - log_var.exp(), dim = -1))
 
-        loss = result['loss']
+        kl_lmbda = self.cfg.kl_lmbda
+        loss = recon_loss + kl_lmbda * kl_loss
 
-        log_data = {x:y if x !='loss' else y.detach() for x, y in result.items()}
-
-        # WANDB log
-        obs = rearrange(obs / 255.0, 'n t f c h w -> n t (f c) h w')[0, :, -1].unsqueeze(1)
+        # logs
+        # get reconstructed image
+        obs_target = rearrange(obs_target, 'n t f c h w -> n t (f c) h w')[0, :, -1].unsqueeze(1)
         recon = rearrange(recon, 'n t f c h w -> n t (f c) h w')[0, :, -1].unsqueeze(1)
         recon = recon.to(float)
         recon = torch.where(recon >= 1.0, 1.0, recon)
         recon = torch.where(recon < 0.0, 0.0, recon)
 
-        log_data['recon'] = wandb.Image(recon)
-
-        log_data['obs'] = wandb.Image(obs)
-
+        log_data = {'loss': loss.item(),
+                    'recon_loss': recon_loss.item(),
+                    'kl_loss': kl_loss.item(),
+                    'recon_image': wandb.Image(recon),
+                    'obs_image': wandb.Image(obs_target)
+        }
+            
         return loss, log_data
+            

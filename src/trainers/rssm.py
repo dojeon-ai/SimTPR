@@ -32,22 +32,30 @@ class RSSMTrainer(BaseTrainer):
         x = self.aug_func(x)        
         x = rearrange(x, 'n (t f c) h w -> n t f c h w', t=t, f=f)
 
-        # encoder
+        ##############
+        # encode
         y, _ = self.model.backbone(x)
-
+        
+        ###############
+        # compute loss
+        # kl loss
         kl_loss, states, rnn_hiddens = self.model.head.kl_loss(y)
-
+        # recon loss
         states = rearrange(states, 't n d -> (n t) d')
         rnn_hiddens = rearrange(rnn_hiddens, 't n d -> (n t) d')
-        recon_loss, recon_observations, obs = self.model.head.recon_loss(obs / 255.0, states, rnn_hiddens)
+        obs_target = obs / 255.0
+        recon_loss, recon, obs_target = self.model.head.recon_loss(obs_target, states, rnn_hiddens)
 
-        loss = recon_loss +  0.025 * kl_loss
+        # loss
+        kl_lmbda = self.cfg.kl_lmbda
+        loss = recon_loss + kl_lmbda * kl_loss
         
+        ################
+        # log
         log_data = {'loss': loss.item(),
-                    'Reconstruction_Loss': recon_loss.item(),
-                    'KLD': kl_loss.item(),
-                    'recon': wandb.Image(recon_observations),
-                    'obs': wandb.Image(obs)
-                    }
+                    'recon_loss': recon_loss.item(),
+                    'kl_loss': kl_loss.item(),
+                    'recon_image': wandb.Image(recon),
+                    'obs_image': wandb.Image(obs_target)}
         
         return loss, log_data

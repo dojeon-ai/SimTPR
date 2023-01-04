@@ -1,9 +1,9 @@
 project_name: 'atari_pretrain'
 entity: 'draftrec'
 group_name: 'test'
-exp_name: 'vae_impala_lr3e_4'
+exp_name: 'vae_impala'
 device: cuda:0
-debug: False
+debug: True
 seed: 0
 
 defaults:

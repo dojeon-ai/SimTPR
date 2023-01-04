@@ -128,3 +128,74 @@ class Impala(BaseBackbone):
             
         return x, info
 
+
+class TransposeResidualBlock(nn.Module):
+    def __init__(self,
+                 in_channels,
+                 out_channels,
+                 expansion_ratio,
+                 stride,
+                 norm_type,
+                 num_layers):
+        super(TransposeResidualBlock, self).__init__()
+        hid_channels = in_channels * expansion_ratio
+        self.stride = stride
+        self.down = self.conv = nn.ConvTranspose2d(in_channels=in_channels, 
+                                       out_channels=out_channels, 
+                                       kernel_size=3, 
+                                       stride=stride,
+                                       padding=1,
+                                       output_padding=stride-1)
+        fixup_init(self.down, 1)
+        
+        self.layers = []
+        if expansion_ratio == 1:
+            conv1 = nn.ConvTranspose2d(in_channels=hid_channels, 
+                                       out_channels=hid_channels, 
+                                       kernel_size=3, 
+                                       stride=stride,
+                                       padding=1,
+                                       output_padding=stride-1,
+                                       groups=hid_channels)
+            conv2 = nn.Conv2d(hid_channels, in_channels, 1, 1, 0)
+            fixup_init(conv1, num_layers)
+            fixup_init(conv2, num_layers)
+            
+            self.layers = nn.Sequential(
+                conv1, 
+                init_normalization(channels=hid_channels, norm_type=norm_type),
+                nn.ReLU(),
+                conv2,
+                init_normalization(channels=in_channels, norm_type=norm_type),
+            )
+        else:
+            hid_channels = in_channels * expansion_ratio
+            conv1 = nn.Conv2d(in_channels, hid_channels, 1, 1, 0)
+            conv2 = nn.ConvTranspose2d(in_channels=hid_channels, 
+                                       out_channels=hid_channels, 
+                                       kernel_size=3, 
+                                       stride=stride,
+                                       padding=1,
+                                       output_padding=stride-1,
+                                       groups=hid_channels)
+            conv3 = nn.Conv2d(hid_channels, out_channels, 1, 1, 0)
+            fixup_init(conv1, num_layers)
+            fixup_init(conv2, num_layers)
+            fixup_init(conv3, num_layers)
+            
+            self.layers = nn.Sequential(
+                conv1,
+                init_normalization(channels=hid_channels, norm_type=norm_type),
+                nn.ReLU(),
+                conv2, 
+                init_normalization(channels=hid_channels, norm_type=norm_type),
+                nn.ReLU(),
+                conv3,
+                init_normalization(channels=out_channels, norm_type=norm_type),
+            )
+        if norm_type is not None:
+             nn.init.constant_(self.layers[-1].weight, 0)
+                
+    def forward(self, x):
+        out = self.layers(x)
+        return self.down(x) + out
