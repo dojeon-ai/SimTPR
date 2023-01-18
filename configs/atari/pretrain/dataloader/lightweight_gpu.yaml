@@ -1,9 +1,9 @@
 type: 'replay'
 data_type: 'atari'
-#data_path: '/home/nas3_userK/hojoonlee/projects/video_rl/data/atari'
-#tmp_data_path: '/home/nas3_userK/hojoonlee/projects/video_rl/data/atari'
-data_path: '/data/private/video_rl/data/atari'
-tmp_data_path: '/data/private/video_rl/data/atari'
+data_path: '/home/nas3_userK/hojoonlee/projects/video_rl/data/atari'
+tmp_data_path: '/home/nas3_userK/hojoonlee/projects/video_rl/data/atari'
+#data_path: '/data/private/video_rl/data/atari'
+#tmp_data_path: '/data/private/video_rl/data/atari'
 game: 'Boxing' # requires camel case
 dataset_on_gpu: True
 dataset_on_disk: False

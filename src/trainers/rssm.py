@@ -54,8 +54,9 @@ class RSSMTrainer(BaseTrainer):
         # log
         log_data = {'loss': loss.item(),
                     'recon_loss': recon_loss.item(),
-                    'kl_loss': kl_loss.item(),
-                    'recon_image': wandb.Image(recon),
-                    'obs_image': wandb.Image(obs_target)}
-        
+                    'kl_loss': kl_loss.item()
+                    #'recon_image': wandb.Image(recon),
+                    #'obs_image': wandb.Image(obs_target)
+        }
+
         return loss, log_data
