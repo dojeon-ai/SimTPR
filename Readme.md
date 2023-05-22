@@ -80,7 +80,7 @@ Download the pretrained model by using the `download_models.py` script
 python download_models.py --project_name [project_name] --group_name [group_name] --exp_name [exp_name]
 ```
 
-If you want to use the pretrained encoder from ours, you can download from the below:
+If you want to use the pretrained encoder from ours, you can directly download from the below link:
 
 (state) SimTPR
 
