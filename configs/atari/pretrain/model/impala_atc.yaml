@@ -1,4 +1,0 @@
-defaults:
-- backbone: impala
-- head: atc
-- policy: identity

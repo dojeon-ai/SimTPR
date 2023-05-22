@@ -26,11 +26,8 @@ def build_trainer(cfg,
     if len(cfg.aug_types) == 0:
         cfg.aug_types = []
 
-    if 'dmc_random_crop' in cfg.aug_types:
-        aug_func = RandomShiftsAug(pad=4)
-    else:
-        aug_func = Augmentation(obs_shape=cfg.obs_shape, 
-                                aug_types=cfg.aug_types)
+    aug_func = Augmentation(obs_shape=cfg.obs_shape, 
+                            aug_types=cfg.aug_types)
 
     # trainer
     trainer_type = cfg.pop('type')

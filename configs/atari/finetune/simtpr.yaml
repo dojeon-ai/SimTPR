@@ -1,0 +1,13 @@
+project_name: 'simtpr_icml2023'
+entity: 'simtpr'
+group_name: 'test'
+exp_name: 'simtpr'
+device: cuda:0
+seed: 0
+
+defaults:
+- _self_
+- agent: drq_freeze
+- env: atari
+- model: impala
+- pretrain: simtpr

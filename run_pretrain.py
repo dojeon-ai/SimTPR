@@ -71,13 +71,6 @@ def run(args):
     # load pretrained
     p_cfg = cfg.pretrain
     p_cfg.env = cfg.dataloader.game
-
-    if p_cfg.use_pretrained:
-        artifact = wandb.run.use_artifact(str(p_cfg.artifact_name))
-        model_path = p_cfg.env + '/' + p_cfg.seed + '/' + p_cfg.name
-        model_path = artifact.get_path(model_path).download()
-        state_dict = torch.load(model_path, map_location=device)
-        model.load_state_dict(state_dict['model_state_dict'], strict=False)
     
     trainer = build_trainer(cfg=cfg.trainer,
                             train_loader=train_loader,
@@ -102,7 +95,7 @@ def run(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(allow_abbrev=False)
     parser.add_argument('--config_dir',  type=str,    default='atari/pretrain')
-    parser.add_argument('--config_name', type=str,    default='mixed_gpt_impala') 
+    parser.add_argument('--config_name', type=str,    default='simtpr') 
     parser.add_argument('--overrides',   action='append', default=[])
     args = parser.parse_args()
 

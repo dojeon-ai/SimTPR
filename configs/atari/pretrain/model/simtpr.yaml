@@ -1,0 +1,4 @@
+defaults:
+- backbone: impala
+- head: simtpr
+- policy: identity

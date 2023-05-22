@@ -22,6 +22,7 @@ class RAINBOW(BaseAgent):
         
         super().__init__(cfg, device, train_env, eval_env, logger, buffer, aug_func, model)  
         self.target_model = copy.deepcopy(self.model).to(self.device)   
+        self.target_model.load_state_dict(self.model.state_dict())
         for param in self.target_model.parameters():
             param.requires_grad = False
 
@@ -57,7 +58,6 @@ class RAINBOW(BaseAgent):
     def reset(self):
         self.model.policy.reset_parameter()
         self.model.policy.reset_noise()
-        self.target_model.load_state_dict(self.model.state_dict())
 
     def compute_loss(self):
         self.model.train()

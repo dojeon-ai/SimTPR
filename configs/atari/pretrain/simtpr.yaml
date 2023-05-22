@@ -1,0 +1,15 @@
+project_name: 'simtpr_icml2023'
+entity: 'simtpr'
+group_name: 'test'
+exp_name: 'simtpr'
+device: cuda:0
+debug: False
+seed: 0
+
+defaults:
+- _self_
+- dataloader: lightweight_gpu
+- env: atari
+- trainer: simtpr
+- model: simtpr
+- pretrain: scratch

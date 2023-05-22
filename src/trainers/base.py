@@ -11,7 +11,6 @@ from src.common.train_utils import CosineAnnealingWarmupRestarts, get_grad_norm_
 from src.common.losses import SoftmaxFocalLoss
 from sklearn.metrics import f1_score
 from einops import rearrange
-import cyanure as cy
 
 
 class BaseTrainer():
@@ -162,11 +161,9 @@ class BaseTrainer():
             env_eval_logs = self.evaluate_policy()
             eval_logs.update(env_eval_logs)
         
-        rew_eval_logs = self.probe_reward()
         act_eval_logs = self.probe_action()
         feat_eval_logs = self.evaluate_feature()
         
-        eval_logs.update(rew_eval_logs)
         eval_logs.update(act_eval_logs)
         eval_logs.update(feat_eval_logs)
 
@@ -269,36 +266,6 @@ class BaseTrainer():
         y_test = ys[:split_idx]
     
         return x_train, y_train, x_test, y_test
-    
-    def probe_reward(self):
-        print(f'start reward probing')
-        x_train, y_train, x_test, y_test = self._generate_features_for_probing('reward')
-
-        # logistic regression
-        # import error: [import cyanure.estimators] in cyanure.__init__
-        from cyanure.estimators import Classifier
-        classifier = Classifier(
-            loss="logistic",
-            penalty="l2",
-            max_iter=300,
-            tol=1e-5,
-            verbose=False,
-            fit_intercept=False,
-            lambda_1=0.000000004,
-        )
-
-        cy.data_processing.preprocess(x_train, centering=True, normalize=True, columns=False)
-        cy.data_processing.preprocess(x_test, centering=True, normalize=True, columns=False)
-        
-        classifier.fit(x_train, y_train)
-        y_pred = classifier.predict(x_test)
-        
-        f1 = f1_score(y_test, y_pred)
-        log_data = {}
-        log_data['reward_ratio'] = np.sum(y_test) / len(y_test)
-        log_data['reward_f1'] = f1
-
-        return log_data
     
     def probe_action(self):
         print(f'start action probing')

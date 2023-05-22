@@ -1,5 +1,5 @@
 use_pretrained: True
-artifact_name: 'atari_pretrain/clt:latest'
+artifact_name: ''
 env: None
 seed: '0'
 name: '10/model.pth'

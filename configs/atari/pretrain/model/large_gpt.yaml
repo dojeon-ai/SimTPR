@@ -1,4 +1,0 @@
-defaults:
-- backbone: large
-- head: gpt
-- policy: identity

@@ -1,6 +1,5 @@
 from .base import BaseEnv
 from .atari import AtariEnv
-from .dmc import make_dmc_env
 from omegaconf import OmegaConf
 from src.common.class_utils import all_subclasses
 

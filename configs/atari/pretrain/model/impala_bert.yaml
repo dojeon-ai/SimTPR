@@ -1,4 +1,0 @@
-defaults:
-- backbone: impala
-- head: bert
-- policy: identity

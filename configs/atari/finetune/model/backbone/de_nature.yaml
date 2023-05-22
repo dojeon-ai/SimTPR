@@ -1,5 +1,0 @@
-type: 'nature'
-obs_shape: None
-action_size: None
-init_type: None
-renormalize: False

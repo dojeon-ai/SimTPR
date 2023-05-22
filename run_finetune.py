@@ -61,19 +61,12 @@ def run(args):
         p_cfg.env = ''.join(word.title() for word in str(cfg.env.game).split('_'))
 
     if p_cfg.use_pretrained:
-        artifact = wandb.run.use_artifact(str(p_cfg.artifact_name))
-        model_path = p_cfg.env + '/' + p_cfg.seed + '/' + p_cfg.name
-        model_path = artifact.get_path(model_path).download()
+        model_path = './models/simtpr/' + p_cfg.env + '/' + p_cfg.seed + '/' + p_cfg.name
         state_dict = torch.load(model_path, map_location=device)['model_state_dict']
-        
         _state_dict = {}
         for name, param in state_dict.items():
             if 'backbone' in name:
                 _state_dict[name] = param
-            
-            #if name == 'head.obs_in.0.weight':
-            #    _state_dict['policy.fc_v.0.weight_mu'] = param
-            #    _state_dict['policy.fc_adv.0.weight_mu'] = param
 
         model.load_state_dict(_state_dict, strict=False)
         
@@ -95,7 +88,7 @@ def run(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(allow_abbrev=False)
     parser.add_argument('--config_dir',  type=str,    default='atari/finetune')
-    parser.add_argument('--config_name', type=str,    default='drq_impala') 
+    parser.add_argument('--config_name', type=str,    default='simtpr') 
     parser.add_argument('--overrides',   action='append', default=[])
     args = parser.parse_args()
 

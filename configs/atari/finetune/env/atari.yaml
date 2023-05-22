@@ -1,5 +1,5 @@
 type: 'atari'
-game: 'pong'
+game: 'breakout'
 frame_skip: 4
 frame: 4
 horizon: 27000

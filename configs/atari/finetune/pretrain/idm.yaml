@@ -1,5 +1,0 @@
-use_pretrained: True
-artifact_name: 'atari_pretrain/idm:latest'
-env: None
-seed: '0'
-name: '50/model.pth'

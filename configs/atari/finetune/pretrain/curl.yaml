@@ -1,5 +1,0 @@
-use_pretrained: True
-artifact_name: 'atari_pretrain/curl:latest'
-env: None
-seed: '0'
-name: '100/model.pth'

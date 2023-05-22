@@ -1,4 +1,0 @@
-defaults:
-- backbone: nature
-- head: identity
-- policy: rainbow_d256_std05

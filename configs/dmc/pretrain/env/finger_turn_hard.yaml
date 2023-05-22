@@ -1,9 +1,0 @@
-defaults:
-  - medium
-  - _self_
-
-type: 'dmc'
-game: 'finger_turn_hard'
-action_repeat: 2
-frame_stack: 3
-seed: None  # Defined in cfg

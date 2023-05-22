@@ -98,13 +98,13 @@ class BaseAgent(metaclass=ABCMeta):
             if t % self.cfg.log_every == 0:
                 self.logger.write_log(mode='train')
 
-            # update
-            if (t >= self.cfg.min_buffer_size) & (t % self.cfg.update_freq == 0):
-                self.update()
-                
             # reset model
             if (t >= self.cfg.min_buffer_size) & (t % self.cfg.reset_freq == 0):
                 self.reset()
+
+            # update
+            if (t >= self.cfg.min_buffer_size) & (t % self.cfg.update_freq == 0):
+                self.update()
                 
             # reset environment when trajectory is done
             if info.traj_done:
