@@ -133,4 +133,4 @@ data/Roms.rar*.mp4
 *.gz
 *.mp4
 vis/atari_100k/wandb/**
-models
+*.pth
