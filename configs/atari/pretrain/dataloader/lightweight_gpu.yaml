@@ -1,7 +1,7 @@
 type: 'replay'
 data_type: 'atari'
-data_path: '/home/nas3_userK/hojoonlee/data/atari'
-tmp_data_path: '/home/nas3_userK/hojoonlee/data/atari'
+data_path: 'data/atari'
+tmp_data_path: 'data/atari'
 game: 'Breakout' # requires camel case
 dataset_on_gpu: True
 dataset_on_disk: False
