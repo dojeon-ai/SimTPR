@@ -1,5 +1,5 @@
 use_pretrained: True
-artifact_name: ''
+name: 'simtpr'
 env: None
 seed: '0'
-name: '10/model.pth'
+epoch: '10'

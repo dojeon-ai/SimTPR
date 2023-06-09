@@ -13,13 +13,11 @@ class WandbTrainerLogger(object):
         self.cfg = cfg
         dict_cfg = OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
         wandb.init(project=cfg.project_name,
-                   entity=cfg.entity,
                    config=dict_cfg,
                    group=cfg.exp_name,
                    settings=wandb.Settings(start_method="thread"))  
 
         self.logger = TrainerLogger()
-        self.artifacts = {}
 
     def update_log(self, **kwargs):
         self.logger.update_log(**kwargs)
@@ -29,20 +27,16 @@ class WandbTrainerLogger(object):
         wandb.log(log_data, step=step)
 
     def save_state_dict(self, model, name):
-        path = wandb.run.dir + '/' + self.cfg.dataloader.game + '/' + str(self.cfg.seed) + '/'
+        path = './models/' + self.cfg.exp_name + '/' + self.cfg.dataloader.game + '/' + str(self.cfg.seed) + '/'
         path = path + str(name) + '/model.pth'
         _dir = os.path.dirname(path)
         if not os.path.exists(_dir):
             os.makedirs(_dir)
         state_dict = {'model_state_dict': model.state_dict()}
         torch.save(state_dict, path)
-        self.artifacts[path] = name
     
     def load_state_dict(self, path, device):
         return torch.load(path, map_location=device)
-
-    def get_artifacts(self):
-        return self.artifacts
 
 
 class TrainerLogger(object):
@@ -72,7 +66,6 @@ class WandbAgentLogger(object):
         self.cfg = cfg
         dict_cfg = OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
         wandb.init(project=cfg.project_name, 
-                   entity=cfg.entity,
                    config=dict_cfg,
                    group=cfg.exp_name,
                    reinit=True,
@@ -80,7 +73,6 @@ class WandbAgentLogger(object):
 
         self.train_logger = AgentLogger(average_len=10)
         self.eval_logger = AgentLogger(average_len=100)
-        self.artifacts = {}
         self.timestep = 0
     
     def step(self, state, reward, done, info, mode='train'):
@@ -108,9 +100,6 @@ class WandbAgentLogger(object):
         # prefix
         log_data = {mode+'_'+k: v for k, v in log_data.items() }
         wandb.log(log_data, step=self.timestep)
-
-    def get_artifacts(self):
-        return self.artifacts
 
     
 class VecAgentLogger(object):

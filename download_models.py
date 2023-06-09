@@ -50,7 +50,6 @@ def download(args):
             
         run_exp_name = cfg['exp_name']
         run_group_name = cfg['group_name']
-
         # condition
         if run_exp_name == exp_name and run_group_name == group_name:
             if 'env' in cfg:
@@ -77,7 +76,7 @@ def download(args):
     for run_id, env in zip(data['id'], data['env']):
         print(env, run_id)
         src_path = env + '/' + model_path 
-        dst_path = 'models/' + exp_name + '/' + src_path
+        dst_path = 'models/' + exp_name + '/' + src_path.split('/m')[0]
         
         wandb.restore(src_path, run_path=project_name + '/' + run_id)            
         move_file(src_path, dst_path)

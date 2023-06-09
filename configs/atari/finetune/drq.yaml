@@ -1,5 +1,4 @@
 project_name: 'simtpr_icml2023'
-entity: 'simtpr'
 group_name: 'test'
 exp_name: 'drq_impala'
 device: cuda:0

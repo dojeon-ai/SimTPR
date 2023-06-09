@@ -1,7 +1,6 @@
 project_name: 'simtpr_icml2023'
-entity: 'simtpr'
 group_name: 'test'
-exp_name: 'simtpr'
+exp_name: 'simtpr_pt'
 device: cuda:0
 debug: False
 seed: 0

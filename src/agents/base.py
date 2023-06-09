@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import tqdm
+import random
 from abc import *
 from typing import Tuple
 
@@ -72,7 +73,11 @@ class BaseAgent(metaclass=ABCMeta):
                 self.model.backbone.eval()
             
             obs_tensor = self.buffer.encode_obs(obs, prediction=True)
-            action = self.predict(obs_tensor, mode='train')
+            if t < self.cfg.min_buffer_size:
+                action = random.randint(0, self.cfg.action_size - 1)
+            else:
+                action = self.predict(obs_tensor, mode='train')
+            
             next_obs, reward, done, info = self.train_env.step(action)
 
             # store new transition

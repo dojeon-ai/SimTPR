@@ -61,7 +61,7 @@ def run(args):
         p_cfg.env = ''.join(word.title() for word in str(cfg.env.game).split('_'))
 
     if p_cfg.use_pretrained:
-        model_path = './models/simtpr/' + p_cfg.env + '/' + p_cfg.seed + '/' + p_cfg.name
+        model_path = './models/' + p_cfg.name + '/' + p_cfg.env + '/' + p_cfg.seed + '/' + p_cfg.epoch + '/model.pth'
         state_dict = torch.load(model_path, map_location=device)['model_state_dict']
         _state_dict = {}
         for name, param in state_dict.items():

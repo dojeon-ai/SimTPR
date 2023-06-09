@@ -1,0 +1,7 @@
+runs: [1]
+checkpoints: [3, 4, 5]
+batch_size: 32
+t_step: 11
+frame: 4
+max_size: 500000 # 1e6
+shuffle: True
