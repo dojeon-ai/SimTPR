@@ -75,14 +75,9 @@ To run fine-tuning from the pre-trained model, you need to perform two steps.
 
 **(1) Download pretrained model**
 
-Download the pretrained model by using the `download_models.py` script
-```
-python download_models.py --project_name [project_name] --group_name [group_name] --exp_name [exp_name]
-```
+Download the pretrained models from the below link:
 
-If you want to use the pretrained encoder from ours, you can directly download from the below link:
-
-(state) SimTPR
+[link](https://drive.google.com/drive/folders/1FlMZkoGiOL-tOfLliHMaVxl6FAUKKOqA?usp=sharing). This will download the prtrained SimTPR on the state dataset (Table 2).
 
 **(2) Finetune from pretrained model**
 
@@ -102,7 +97,7 @@ python run_finetune.py --config_name simtpr --overrides env.game='pong'
 ```
 @article{lee2023simtpr,
   title={On the Importance of Feature Decorrelation for Unsupervised Representation Learning for Reinforcement Learning},
-  author={Devlin, Jacob and Chang, Ming-Wei and Lee, Kenton and Toutanova, Kristina},
+  author={Hojoon Lee and Koanho Lee and Dongyoon Hwang and Hyunho Lee and Byungkun Lee and Jaegul Choo},
   journal={arXiv preprint arXiv:1810.04805},
   year={2023}
 }

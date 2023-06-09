@@ -1,5 +1,5 @@
 use_pretrained: False
-artifact_name: ''
+name: 'scratch'
 env: None
-seed: ''
-name: ''
+seed: '0'
+epoch: '10'
