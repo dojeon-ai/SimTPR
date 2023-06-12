@@ -2,7 +2,7 @@
 
 This repostiory contains a PyTorch implementation of the paper 
 
-On the Importance of Feature Decorrelation for URL for RL., Lee et al., ICML 2023.
+[On the Importance of Feature Decorrelation for URL for RL., Lee et al., ICML 2023.](https://arxiv.org/abs/2306.05637)
 
 
 ## Requirements
@@ -98,7 +98,7 @@ python run_finetune.py --config_name simtpr --overrides env.game='pong'
 @article{lee2023simtpr,
   title={On the Importance of Feature Decorrelation for Unsupervised Representation Learning for Reinforcement Learning},
   author={Hojoon Lee and Koanho Lee and Dongyoon Hwang and Hyunho Lee and Byungkun Lee and Jaegul Choo},
-  journal={arXiv preprint arXiv:1810.04805},
+  journal={ICML},
   year={2023}
 }
 ```
