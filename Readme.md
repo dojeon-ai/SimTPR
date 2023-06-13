@@ -1,8 +1,11 @@
 # On the Importance of Feature Decorrelation for <br> Unsupervised Representation Learning for RL
 
-This repostiory contains a PyTorch implementation of the paper 
+This repository contains a PyTorch implementation of the paper 
 
-[On the Importance of Feature Decorrelation for URL for RL., Lee et al., ICML 2023.](https://arxiv.org/abs/2306.05637)
+On the Importance of Feature Decorrelation for URL for RL., Lee et al., ICML 2023. 
+
+[paper](https://arxiv.org/abs/2306.05637)
+[slide](https://drive.google.com/file/d/1EQunG-JCFufFDSEJv6KrOfOMr85CYT1c/view?usp=sharing)
 
 
 ## Requirements
